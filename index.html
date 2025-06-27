@@ -40,6 +40,11 @@
       border: 1px solid #a5d6a7;
     }
 
+    td input[type="number"] {
+      max-width: 80px;
+      box-sizing: border-box;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -74,7 +79,7 @@
       background-color: #1b5e20;
     }
 
-    #riepilogo {
+    #riepilogo, #messaggioTop {
       margin-top: 1.5rem;
       background: #ffffff;
       padding: 1rem;
@@ -82,6 +87,13 @@
       border-left: 5px solid #66bb6a;
       white-space: pre-wrap;
       box-shadow: 0 2px 4px rgba(0, 128, 0, 0.1);
+    }
+
+    #messaggioTop {
+      display: none;
+      font-weight: bold;
+      color: #2e7d32;
+      text-align: center;
     }
 
     /* Modal */
@@ -113,6 +125,22 @@
       margin: 1rem 0.5rem 0 0;
     }
 
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #2e7d32;
+      border-top: 2px solid transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-left: 8px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
     @media (min-width: 768px) {
       select, input[type="number"], button {
         max-width: 500px;
@@ -130,22 +158,24 @@
     <h2>WebApp Ordini Post</h2>
   </header>
 
+  <div id="messaggioTop">✅ Ordine inviato con successo!</div>
+
   <label for="nome">Seleziona famiglia:</label>
   <select id="nome">
     <option value="">-- Seleziona la tua famiglia --</option>
-    <option>famiglia carapezza</option>
-    <option>famiglia caruso</option>
-    <option>famiglia di maria</option>
-    <option>famiglia marino</option>
-    <option>famiglia massimino</option>
-    <option>famiglia milanese</option>
-    <option>famiglia nicosia</option>
-    <option>famiglia pantellaro</option>
-    <option>famiglia romano</option>
-    <option>famiglia ruiz</option>
-    <option>famiglia scala</option>
-    <option>famiglia tanasi</option>
-    <option>famiglia zammillo</option>
+    <option>Famiglia Carapezza</option>
+    <option>Famiglia Caruso</option>
+    <option>Famiglia Di Maria</option>
+    <option>Famiglia Marino</option>
+    <option>Famiglia Massimino</option>
+    <option>Famiglia Milanese</option>
+    <option>Famiglia Nicosia</option>
+    <option>Famiglia Pantellaro</option>
+    <option>Famiglia Romano</option>
+    <option>Famiglia Ruiz</option>
+    <option>Famiglia Scala</option>
+    <option>Famiglia Tanasi</option>
+    <option>Famiglia Zammillo</option>
   </select>
 
   <div id="tabella-g">
@@ -163,9 +193,9 @@
       <h3>Conferma ordine</h3>
       <pre id="riepilogoModal"></pre>
       <div id="messaggioAttesa" style="margin-top:1rem; display:none; color:#2e7d32; font-weight:bold;">
-        ⏳ Attendi, il tuo ordine sta per essere processato...
+        ⏳ Attendi, il tuo ordine sta per essere processato... <span class="spinner"></span>
       </div>
-      <button onclick="inviaOrdine()">Conferma</button>
+      <button id="btnConferma" onclick="inviaOrdine()">Conferma</button>
       <button onclick="chiudiModal()">Annulla</button>
     </div>
   </div>
@@ -195,11 +225,12 @@
         html += `<tr>
                   <td>${p.tipo}</td>
                   <td>${p.giacenza}</td>
-                  <td>${
-                    p.giacenza == 0
+                  <td>$
+                    {p.giacenza == 0
                       ? '<span style="color:red; font-weight:bold;">SoldOut</span>'
                       : `<input type="number" id="quantita-${i}" min="0" max="${p.giacenza}" />`
-                  }</td>
+                    }
+                  </td>
                 </tr>`;
       });
       html += "</table>";
@@ -211,25 +242,21 @@
       if (!nome) return alert("Seleziona il nome della tua famiglia.");
 
       localStorage.setItem("famiglia", nome);
-
       const ordine = [];
       for (let i = 0; i < prodotti.length; i++) {
         const p = prodotti[i];
         const input = document.getElementById(`quantita-${i}`);
-        if (!input) continue; // Salta se SoldOut
-
+        if (!input) continue;
         const qty = parseInt(input.value) || 0;
 
         if (qty > p.giacenza) {
-          alert(`Attenzione: la giacenza del prodotto "${p.tipo}" è inferiore alla richiesta, modificalo.`);
+          alert(`Attenzione: la giacenza del prodotto \"${p.tipo}\" è inferiore alla richiesta, modificalo.`);
           return;
         }
-
         if (qty > 0) {
           ordine.push({ nome, prodotto: p.tipo, quantita: qty });
         }
       }
-
       if (ordine.length === 0) return alert("Nessun prodotto selezionato.");
 
       let riepilogo = `Famiglia: ${nome}\n\n`;
@@ -243,10 +270,13 @@
     function chiudiModal() {
       document.getElementById("modal").style.display = "none";
       document.getElementById("messaggioAttesa").style.display = "none";
+      document.getElementById("btnConferma").disabled = false;
     }
 
     async function inviaOrdine() {
       document.getElementById("messaggioAttesa").style.display = "block";
+      const confermaBtn = document.getElementById("btnConferma");
+      confermaBtn.disabled = true;
 
       try {
         const res = await fetch(scriptUrl, {
@@ -258,10 +288,14 @@
         document.getElementById("riepilogo").innerText = "";
         document.getElementById("modal").style.display = "none";
         document.getElementById("messaggioAttesa").style.display = "none";
+        confermaBtn.disabled = false;
+        document.getElementById("messaggioTop").style.display = "block";
+        setTimeout(() => document.getElementById("messaggioTop").style.display = "none", 4000);
         caricaProdotti();
       } catch (e) {
         alert("Errore durante l'invio dell'ordine: " + e.message);
         document.getElementById("messaggioAttesa").style.display = "none";
+        confermaBtn.disabled = false;
       }
     }
 
