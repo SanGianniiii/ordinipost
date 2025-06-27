@@ -267,10 +267,12 @@ td input[type="number"] {
       document.getElementById("messaggioAttesa").style.display = "none";
     }
 
-    async function inviaOrdine() {
-  document.getElementById("messaggioAttesa").style.display = "block";
+async function inviaOrdine() {
+  const attesa = document.getElementById("messaggioAttesa");
+  if (attesa) attesa.style.display = "block";
+
   const confermaBtn = document.querySelector('#modal-content button:nth-child(4)');
-  confermaBtn.disabled = true;
+  if (confermaBtn) confermaBtn.disabled = true;
 
   try {
     const res = await fetch(scriptUrl, {
@@ -278,23 +280,24 @@ td input[type="number"] {
       body: JSON.stringify({ action: "prenota", ordine: ordineDaInviare })
     });
     const out = await res.json();
-   // Mostra il messaggio visivo
-const notifica = document.getElementById("notifica-successo");
-notifica.style.display = "block";
 
-// Nasconde dopo 4 secondi
-setTimeout(() => {
-  notifica.style.display = "none";
-}, 4000);
+    const notifica = document.getElementById("notifica-successo");
+    if (notifica) {
+      notifica.style.display = "block";
+      setTimeout(() => {
+        notifica.style.display = "none";
+      }, 4000);
+    }
+
     document.getElementById("riepilogo").innerText = "";
     document.getElementById("modal").style.display = "none";
-    document.getElementById("messaggioAttesa").style.display = "none";
-    confermaBtn.disabled = false;
+    if (attesa) attesa.style.display = "none";
+    if (confermaBtn) confermaBtn.disabled = false;
     caricaProdotti();
   } catch (e) {
     alert("Errore durante l'invio dell'ordine: " + e.message);
-    document.getElementById("messaggioAttesa").style.display = "none";
-    confermaBtn.disabled = false;
+    if (attesa) attesa.style.display = "none";
+    if (confermaBtn) confermaBtn.disabled = false;
   }
 }
 
