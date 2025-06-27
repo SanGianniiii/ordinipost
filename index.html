@@ -312,18 +312,22 @@ async function inviaOrdine() {
 
     window.onload = caricaProdotti;
   </script>
-  <div id="notifica-successo" style="
-    display:none;
-    background-color: #c8e6c9;
-    color: #2e7d32;
-    padding: 1rem;
-    text-align: center;
-    font-weight: bold;
-    border-radius: 8px;
-    box-shadow: 0 -2px 6px rgba(0,0,0,0.1);
-    margin-top: 2rem;
-  ">
-    ✅ Ordine inviato con successo!
-  </div>
+<div id="notifica-successo" style="
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #c8e6c9;
+  color: #2e7d32;
+  padding: 1rem 1.5rem;
+  text-align: center;
+  font-weight: bold;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  z-index: 9999;
+">
+  ✅ Ordine inviato con successo!
+</div>
 </body>
 </html>
