@@ -269,10 +269,12 @@ td input[type="number"] {
 
 async function inviaOrdine() {
   const attesa = document.getElementById("messaggioAttesa");
-  if (attesa) attesa.style.display = "block";
-
   const confermaBtn = document.querySelector('#modal-content button:nth-child(4)');
-  if (confermaBtn) confermaBtn.disabled = true;
+  const annullaBtn = document.querySelector('#modal-content button:nth-child(5)');
+
+  if (attesa) attesa.style.display = "block";
+  if (confermaBtn) confermaBtn.style.display = "none";  // nascondi Conferma
+  if (annullaBtn) annullaBtn.style.display = "none";    // nascondi Annulla
 
   try {
     const res = await fetch(scriptUrl, {
@@ -292,14 +294,21 @@ async function inviaOrdine() {
     document.getElementById("riepilogo").innerText = "";
     document.getElementById("modal").style.display = "none";
     if (attesa) attesa.style.display = "none";
-    if (confermaBtn) confermaBtn.disabled = false;
-    caricaProdotti();
   } catch (e) {
     alert("Errore durante l'invio dell'ordine: " + e.message);
     if (attesa) attesa.style.display = "none";
+  } finally {
+    // Riporta i pulsanti visibili (se il modal è ancora aperto)
+    if (document.getElementById("modal").style.display === "flex") {
+      if (confermaBtn) confermaBtn.style.display = "inline-block";
+      if (annullaBtn) annullaBtn.style.display = "inline-block";
+    }
     if (confermaBtn) confermaBtn.disabled = false;
   }
+
+  caricaProdotti();
 }
+
 
     window.onload = caricaProdotti;
   </script>
