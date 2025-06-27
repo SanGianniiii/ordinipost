@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ordini Post - Prenotazioni</title>
+  <style>
+    body {
+      font-family: "Segoe UI", sans-serif;
+      background: linear-gradient(to right, #e8f5e9, #c8e6c9);
+      margin: 0;
+      padding: 2rem;
+      color: #2e7d32;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      justify-content: center;
+      margin-bottom: 2rem;
+    }
+
+    header img {
+      width: 120px;
+      height: 120px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 2.4rem;
+    }
+
+    select, input[type="number"], button {
+      width: 100%;
+      padding: 0.7rem;
+      margin-top: 1rem;
+      font-size: 1rem;
+      border-radius: 6px;
+      border: 1px solid #a5d6a7;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: white;
+      margin-top: 1rem;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0, 128, 0, 0.2);
+    }
+
+    th, td {
+      padding: 0.8rem;
+      text-align: center;
+      border-bottom: 1px solid #e0f2f1;
+    }
+
+    th {
+      background-color: #a5d6a7;
+      color: white;
+    }
+
+    button {
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      margin-top: 1.5rem;
+      font-weight: bold;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background-color: #1b5e20;
+    }
+
+    #riepilogo {
+      margin-top: 1.5rem;
+      background: #ffffff;
+      padding: 1rem;
+      border-radius: 8px;
+      border-left: 5px solid #66bb6a;
+      white-space: pre-wrap;
+      box-shadow: 0 2px 4px rgba(0, 128, 0, 0.1);
+    }
+
+    /* Modal */
+    #modal {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #modal-content {
+      background: white;
+      padding: 2rem;
+      border-radius: 10px;
+      max-width: 90%;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    #modal-content h3 {
+      margin-top: 0;
+      color: #2e7d32;
+    }
+
+    #modal-content button {
+      width: auto;
+      margin: 1rem 0.5rem 0 0;
+    }
+
+    @media (min-width: 768px) {
+      select, input[type="number"], button {
+        max-width: 500px;
+        margin-left: auto;
+        margin-right: auto;
+        display: block;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <img src="logo.png" alt="Logo" />
+    <h2>WebApp Ordini Post</h2>
+  </header>
+
+  <label for="nome">Seleziona famiglia:</label>
+  <select id="nome">
+    <option value="">-- Seleziona la tua famiglia --</option>
+    <option>famiglia carapezza</option>
+    <option>famiglia caruso</option>
+    <option>famiglia di maria</option>
+    <option>famiglia marino</option>
+    <option>famiglia massimino</option>
+    <option>famiglia milanese</option>
+    <option>famiglia nicosia</option>
+    <option>famiglia pantellaro</option>
+    <option>famiglia romano</option>
+    <option>famiglia ruiz</option>
+    <option>famiglia scala</option>
+    <option>famiglia tanasi</option>
+    <option>famiglia zammillo</option>
+  </select>
+
+  <div id="tabella-g">
+    <h3>Disponibilità prodotti</h3>
+    <div id="prodotti"></div>
+  </div>
+
+  <button onclick="confermaOrdine()">Prenota</button>
+
+  <div id="riepilogo"></div>
+
+  <!-- Modal -->
+  <div id="modal">
+    <div id="modal-content">
+      <h3>Conferma ordine</h3>
+      <pre id="riepilogoModal"></pre>
+      <div id="messaggioAttesa" style="margin-top:1rem; display:none; color:#2e7d32; font-weight:bold;">
+        ⏳ Attendi, il tuo ordine sta per essere processato...
+      </div>
+      <button onclick="inviaOrdine()">Conferma</button>
+      <button onclick="chiudiModal()">Annulla</button>
+    </div>
+  </div>
+
+  <script>
+    const scriptUrl = "https://script.google.com/macros/s/AKfycbxHTkILFghuXvjUJcImnH5pzvWyqtDer1wEUEjc3uGW-OGIVcuwUbeJJGRFWwCWhoqN/exec";
+    let prodotti = [];
+    let ordineDaInviare = [];
+
+    async function caricaProdotti() {
+      try {
+        const res = await fetch(scriptUrl + "?action=read");
+        const data = await res.json();
+        prodotti = data;
+        mostraTabella();
+
+        const salvato = localStorage.getItem("famiglia");
+        if (salvato) document.getElementById("nome").value = salvato;
+      } catch (e) {
+        alert("Errore nel caricamento dei dati: " + e.message);
+      }
+    }
+
+    function mostraTabella() {
+      let html = "<table><tr><th>Prodotto</th><th>Disponibile</th><th>Quantità</th></tr>";
+      prodotti.forEach((p, i) => {
+        html += `<tr>
+                  <td>${p.tipo}</td>
+                  <td>${p.giacenza}</td>
+                  <td>${
+                    p.giacenza == 0
+                      ? '<span style="color:red; font-weight:bold;">SoldOut</span>'
+                      : `<input type="number" id="quantita-${i}" min="0" max="${p.giacenza}" />`
+                  }</td>
+                </tr>`;
+      });
+      html += "</table>";
+      document.getElementById("prodotti").innerHTML = html;
+    }
+
+    function confermaOrdine() {
+      const nome = document.getElementById("nome").value.trim();
+      if (!nome) return alert("Seleziona il nome della tua famiglia.");
+
+      localStorage.setItem("famiglia", nome);
+
+      const ordine = [];
+      for (let i = 0; i < prodotti.length; i++) {
+        const p = prodotti[i];
+        const input = document.getElementById(`quantita-${i}`);
+        if (!input) continue; // Salta se SoldOut
+
+        const qty = parseInt(input.value) || 0;
+
+        if (qty > p.giacenza) {
+          alert(`Attenzione: la giacenza del prodotto "${p.tipo}" è inferiore alla richiesta, modificalo.`);
+          return;
+        }
+
+        if (qty > 0) {
+          ordine.push({ nome, prodotto: p.tipo, quantita: qty });
+        }
+      }
+
+      if (ordine.length === 0) return alert("Nessun prodotto selezionato.");
+
+      let riepilogo = `Famiglia: ${nome}\n\n`;
+      ordine.forEach(o => riepilogo += `- ${o.prodotto}: ${o.quantita}\n`);
+
+      ordineDaInviare = ordine;
+      document.getElementById("riepilogoModal").innerText = riepilogo;
+      document.getElementById("modal").style.display = "flex";
+    }
+
+    function chiudiModal() {
+      document.getElementById("modal").style.display = "none";
+      document.getElementById("messaggioAttesa").style.display = "none";
+    }
+
+    async function inviaOrdine() {
+      document.getElementById("messaggioAttesa").style.display = "block";
+
+      try {
+        const res = await fetch(scriptUrl, {
+          method: "POST",
+          body: JSON.stringify({ action: "prenota", ordine: ordineDaInviare })
+        });
+        const out = await res.json();
+        alert(out.message);
+        document.getElementById("riepilogo").innerText = "";
+        document.getElementById("modal").style.display = "none";
+        document.getElementById("messaggioAttesa").style.display = "none";
+        caricaProdotti();
+      } catch (e) {
+        alert("Errore durante l'invio dell'ordine: " + e.message);
+        document.getElementById("messaggioAttesa").style.display = "none";
+      }
+    }
+
+    window.onload = caricaProdotti;
+  </script>
+</body>
+</html>
