@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2e7d32">
   <title>Ordini Post - Prenotazioni</title>
   <style>
     body {
@@ -347,6 +349,11 @@
     });
 
     window.onload = caricaProdotti;
+    if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('service-worker.js')
+    .then(() => console.log('✅ Service Worker registrato'))
+    .catch(err => console.error('❌ Errore Service Worker:', err));
+    }
   </script>
 
   <div id="notifica-successo" style="
