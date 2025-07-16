@@ -101,15 +101,6 @@
       background-color: #1b5e20;
     }
 
-    #riepilogo {
-      margin-top: 1.5rem;
-      background: #ffffff;
-      padding: 1rem;
-      border-radius: 8px;
-      border-left: 5px solid #66bb6a;
-      white-space: pre-wrap;
-      box-shadow: 0 2px 4px rgba(0, 128, 0, 0.1);
-    }
 
     #modal {
       position: fixed;
@@ -347,7 +338,6 @@
           }, 4000);
         }
 
-        document.getElementById("riepilogo").innerText = "";
         document.getElementById("modal").style.display = "none";
         if (attesa) attesa.style.display = "none";
       } catch (e) {
