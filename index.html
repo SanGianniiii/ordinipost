@@ -301,8 +301,21 @@
       ordine.forEach(o => riepilogo += `- ${o.prodotto}: ${o.quantita}\n`);
 
       ordineDaInviare = ordine;
-      document.getElementById("riepilogoModal").innerText = riepilogo;
-      document.getElementById("modal").style.display = "flex";
+  document.getElementById("riepilogoModal").innerText = riepilogo;
+
+  const confermaBtn = document.querySelector('#modal-content button:nth-child(4)');
+  const annullaBtn = document.querySelector('#modal-content button:nth-child(5)');
+
+  if (confermaBtn) {
+    confermaBtn.style.display = "inline-block";
+    confermaBtn.disabled = false;
+  }
+  if (annullaBtn) {
+    annullaBtn.style.display = "inline-block";
+  }
+
+  document.getElementById("modal").style.display = "flex";
+
     }
 
     function chiudiModal() {
