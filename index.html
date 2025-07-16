@@ -162,7 +162,31 @@
   </style>
 </head>
 <body>
+<script type="module">
+    // Importa i moduli Firebase necessari
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+    // Puoi importare altri servizi man mano che li usi, ad esempio per FCM:
+    // import { getMessaging } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js';
 
+    // La configurazione del tuo progetto Firebase (copiata dal Passaggio 1)
+    const firebaseConfig = {
+      apiKey: "AIzaSyAY8l_GGRWPWi5BFpirUMXd2JN0MVZZpYM",
+      authDomain: "ordinipost-fcc7f.firebaseapp.com",
+      projectId: "ordinipost-fcc7f",
+      storageBucket: "ordinipost-fcc7f.appspot.com",
+      messagingSenderId: "363847145933",
+      appId: "1:363847145933:web:d1590848833eb147590c84",
+      // ... altri parametri se presenti
+    };
+
+    // Inizializza Firebase
+    const app = initializeApp(firebaseConfig);
+
+    // Ora puoi usare i servizi Firebase! Ad esempio, per FCM:
+    // const messaging = getMessaging(app);
+    // console.log("Firebase e Messaging inizializzati!");
+
+  </script>
   <!-- Splash screen -->
   <div id="splash">
     <img src="logo.png" alt="Logo">
