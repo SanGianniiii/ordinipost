@@ -183,25 +183,25 @@ navigator.serviceWorker
   .then((registration) => {
     console.log('✅ Service Worker registrato');
 
-    Notification.requestPermission().then((permission) => {
+    return Notification.requestPermission().then((permission) => {
       if (permission === "granted") {
         return getToken(messaging, {
           vapidKey: "Iqwy9NBf6sYYad6tPbLs-DiSbgd5DF-Aowk7rmzl5Cw",
-          serviceWorkerRegistration: registration // ✅ fondamentale
+          serviceWorkerRegistration: registration, // ✅ necessario
         });
       } else {
-        console.warn("❌ Permesso notifiche negato");
+        throw new Error('❌ Permesso notifiche non concesso');
       }
     });
   })
   .then((token) => {
-    if (token) {
-      console.log("✅ Token ottenuto:", token);
-    }
+    console.log('📬 FCM Token:', token);
+    // Puoi salvare il token nel tuo backend qui
   })
   .catch((err) => {
-    console.error("❌ Errore durante getToken o la registrazione:", err);
+    console.error('❌ Errore nella registrazione del Service Worker o nel recupero del token:', err);
   });
+
   // 👉 Gestione messaggio quando la pagina è aperta
   onMessage(messaging, (payload) => {
     console.log("📩 Messaggio ricevuto in foreground:", payload);
