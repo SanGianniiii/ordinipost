@@ -252,8 +252,8 @@
                   <td>${p.tipo}</td>
                   <td>${p.giacenza}</td>
                   <td>${
-                    p.giacenza == 0
-                      ? '<span style="color:red; font-weight:bold;">SoldOut</span>'
+                    p.giacenza <= 0
+                      ? '<span style="color:red; font-weight:bold;">Sold Out</span>'
                       : `<input type="number" id="quantita-${i}" min="0" max="${p.giacenza}" />`
                   }</td>
                 </tr>`;
