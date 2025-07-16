@@ -374,52 +374,5 @@
     ✅ Ordine inviato con successo!
   </div>
 
-  <!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js"></script>
-
-<script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyCsdhMZqfh50Ar5Izqx-klAoMV4jvcifBo",
-    authDomain: "ordinipost.firebaseapp.com",
-    projectId: "ordinipost",
-    storageBucket: "ordinipost.appspot.com",
-    messagingSenderId: "671967993881",
-    appId: "1:671967993881:web:5aaa1b15139cbee6fa4a88"
-  };
-
-  firebase.initializeApp(firebaseConfig);
-  const messaging = firebase.messaging();
-
-  async function richiediPermesso() {
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission === "granted") {
-        const token = await messaging.getToken({
-          vapidKey: "BGuaJRdCBRTY0eqDAX9Un1RUVo5BRSMvcvDBKpkbWNrLRLeopVgIm9ZxG72mkuHXpe7jtCZ28-qos5fE5IOR6WE"
-        });
-
-        console.log("✅ Token:", token);
-
-        await fetch("https://script.google.com/macros/s/AKfycbwHFSHaP682mqcHeAIkAD1t8F336YxxZEeGlwM1rHbF7oXifJ9jEv816PZaGd5ons5a/exec?action=salvaToken", {
-          method: "POST",
-          body: JSON.stringify({ token }),
-        });
-      }
-    } catch (err) {
-      console.error("❌ Errore token:", err);
-    }
-  }
-
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("firebase-messaging-sw.js")
-      .then(reg => {
-        console.log("✅ Service worker registrato");
-        messaging.useServiceWorker(reg);
-        richiediPermesso();
-      });
-  }
-</script>
-
 </body>
 </html>
