@@ -206,6 +206,8 @@
   </div>
 
   <button onclick="confermaOrdine()">Prenota</button>
+  <button onclick="mostraRiepilogoPrenotazioni()">Riepilogo Prenotazioni</button>
+
 
   <div id="riepilogo"></div>
 
@@ -222,7 +224,13 @@
       <button onclick="chiudiModal()">Annulla</button>
     </div>
   </div>
-
+<div id="modal-riepilogo" style="display:none; position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);justify-content:center;align-items:center;">
+  <div style="background:#fff; padding:20px; border-radius:10px; max-width:500px; width:90%; max-height:80vh; overflow-y:auto;">
+    <h3>Riepilogo Prenotazioni</h3>
+    <pre id="contenuto-riepilogo" style="white-space: pre-wrap; font-family: monospace;"></pre>
+    <button onclick="document.getElementById('modal-riepilogo').style.display='none'">Chiudi</button>
+  </div>
+</div>
   <script>
     const scriptUrl = "https://script.google.com/macros/s/AKfycbzeUhhMfbrOoNOC0poIgowaD-LII689HLXpoHrv9GwsI5lx5TqEtva47ZW3DHJI1qjMkA/exec";
     let prodotti = [];
@@ -354,6 +362,40 @@
     .then(() => console.log('✅ Service Worker registrato'))
     .catch(err => console.error('❌ Errore Service Worker:', err));
     }
+
+    async function mostraRiepilogoPrenotazioni() {
+    const nominativo = document.getElementById('nome').value.trim();
+    if (!nominativo) {
+      alert("Seleziona prima un nominativo dalla lista.");
+      return;
+    }
+
+    try {
+      // Qui fai la fetch per ottenere i dati dal tuo Google Apps Script
+      // Per esempio, implementa lato GAS una azione "riepilogo" che ritorna i dati dal foglio prenotazioni
+      
+      const url = scriptUrl + "?action=riepilogo&nominativo=" + encodeURIComponent(nominativo);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Errore nel recupero dati");
+      const data = await res.json();
+
+      // Data dovrebbe essere un oggetto con prodotti e valori per quel nominativo
+      if (data.length === 0) {
+        document.getElementById("contenuto-riepilogo").innerText = `Nessuna prenotazione trovata per ${nominativo}.`;
+      } else {
+        let testo = `Riepilogo prenotazioni per ${nominativo}:\n\n`;
+        data.forEach(item => {
+          testo += `- ${item.prodotto}: ${item.valore}\n`;
+        });
+        document.getElementById("contenuto-riepilogo").innerText = testo;
+      }
+
+      document.getElementById('modal-riepilogo').style.display = "flex";
+
+    } catch (err) {
+      alert("Errore durante il caricamento del riepilogo: " + err.message);
+    }
+  }
   </script>
 
   <div id="notifica-successo" style="
