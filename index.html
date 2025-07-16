@@ -4,10 +4,170 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#2e7d32">
+<meta name="theme-color" content="#2e7d32">
   <title>Ordini Post - Prenotazioni</title>
   <style>
-    /* Stile omesso per brevità: mantieni lo stesso */
+    body {
+      font-family: "Segoe UI", sans-serif;
+      background: linear-gradient(to right, #e8f5e9, #c8e6c9);
+      margin: 0;
+      padding: 2rem;
+      color: #2e7d32;
+    }
+
+    /* Splash screen */
+    #splash {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background-color: #e8f5e9;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 99999;
+      opacity: 1;
+      transition: opacity 1s ease-out;
+    }
+
+    #splash img {
+      width: 400px;
+      height: 400px;
+      animation: fadeIn 1s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.8); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      justify-content: center;
+      margin-bottom: 2rem;
+    }
+
+    header img {
+      width: 120px;
+      height: 120px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 2.4rem;
+    }
+
+    select, input[type="number"], button {
+      width: 100%;
+      padding: 0.7rem;
+      margin-top: 1rem;
+      font-size: 1rem;
+      border-radius: 6px;
+      border: 1px solid #a5d6a7;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: white;
+      margin-top: 1rem;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0, 128, 0, 0.2);
+    }
+
+    th, td {
+      padding: 0.8rem;
+      text-align: center;
+      border-bottom: 1px solid #e0f2f1;
+    }
+
+    th {
+      background-color: #a5d6a7;
+      color: white;
+    }
+
+    button {
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      margin-top: 1.5rem;
+      font-weight: bold;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background-color: #1b5e20;
+    }
+
+    #riepilogo {
+      margin-top: 1.5rem;
+      background: #ffffff;
+      padding: 1rem;
+      border-radius: 8px;
+      border-left: 5px solid #66bb6a;
+      white-space: pre-wrap;
+      box-shadow: 0 2px 4px rgba(0, 128, 0, 0.1);
+    }
+
+    #modal {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #modal-content {
+      background: white;
+      padding: 2rem;
+      border-radius: 10px;
+      max-width: 90%;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    #modal-content h3 {
+      margin-top: 0;
+      color: #2e7d32;
+    }
+
+    #modal-content button {
+      width: auto;
+      margin: 1rem 0.5rem 0 0;
+    }
+
+    @media (min-width: 768px) {
+      select, input[type="number"], button {
+        max-width: 500px;
+        margin-left: auto;
+        margin-right: auto;
+        display: block;
+      }
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #2e7d32;
+      border-top: 2px solid transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-left: 8px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    td input[type="number"] {
+      max-width: 80px;
+      box-sizing: border-box;
+    }
   </style>
 </head>
 <body>
@@ -25,7 +185,19 @@
   <label for="nome">Seleziona Famiglia di Padrini:</label>
   <select id="nome">
     <option value="">-- Seleziona la tua Famiglia --</option>
-    <!-- Opzioni famiglie qui -->
+    <option>Carapezza</option>
+    <option>Caruso</option>
+    <option>Di Maria</option>
+    <option>Marino</option>
+    <option>Massimino</option>
+    <option>Milanese</option>
+    <option>Nicosia</option>
+    <option>Pantellaro</option>
+    <option>Romano</option>
+    <option>Ruiz</option>
+    <option>Scala</option>
+    <option>Tanasi</option>
+    <option>Zammillo</option>
   </select>
 
   <div id="tabella-g">
@@ -34,13 +206,15 @@
   </div>
 
   <button onclick="confermaOrdine()">Prenota</button>
+
   <div id="riepilogo"></div>
 
+  <!-- Modal -->
   <div id="modal">
     <div id="modal-content">
       <h3>Conferma ordine</h3>
       <pre id="riepilogoModal"></pre>
-      <div id="messaggioAttesa" style="display:none; color:#2e7d32; font-weight:bold;">
+      <div id="messaggioAttesa" style="margin-top:1rem; display:none; color:#2e7d32; font-weight:bold;">
         ⏳ Attendi, il tuo ordine sta per essere processato...
         <span class="spinner"></span>
       </div>
@@ -49,12 +223,8 @@
     </div>
   </div>
 
-  <div id="notifica-successo" style="display:none; /* stile omesso */">
-    ✅ Ordine inviato con successo!
-  </div>
-
   <script>
-    const scriptUrl = "https://script.google.com/macros/s/.../exec";  // tuo URL macro
+    const scriptUrl = "https://script.google.com/macros/s/AKfycbxHTkILFghuXvjUJcImnH5pzvWyqtDer1wEUEjc3uGW-OGIVcuwUbeJJGRFWwCWhoqN/exec";
     let prodotti = [];
     let ordineDaInviare = [];
 
@@ -64,6 +234,7 @@
         const data = await res.json();
         prodotti = data;
         mostraTabella();
+
         const salvato = localStorage.getItem("famiglia");
         if (salvato) document.getElementById("nome").value = salvato;
       } catch (e) {
@@ -91,6 +262,7 @@
     function confermaOrdine() {
       const nome = document.getElementById("nome").value.trim();
       if (!nome) return alert("Seleziona il nome della tua famiglia.");
+
       localStorage.setItem("famiglia", nome);
 
       const ordine = [];
@@ -100,11 +272,15 @@
         if (!input) continue;
 
         const qty = parseInt(input.value) || 0;
+
         if (qty > p.giacenza) {
           alert(`Attenzione: la giacenza del prodotto "${p.tipo}" è inferiore alla richiesta, modificalo.`);
           return;
         }
-        if (qty > 0) ordine.push({ nome, prodotto: p.tipo, quantita: qty });
+
+        if (qty > 0) {
+          ordine.push({ nome, prodotto: p.tipo, quantita: qty });
+        }
       }
 
       if (ordine.length === 0) return alert("Nessun prodotto selezionato.");
@@ -124,46 +300,126 @@
 
     async function inviaOrdine() {
       const attesa = document.getElementById("messaggioAttesa");
-      const confermaBtn = document.querySelector('#modal-content button:nth-child(3)');
-      const annullaBtn = document.querySelector('#modal-content button:nth-child(4)');
+      const confermaBtn = document.querySelector('#modal-content button:nth-child(4)');
+      const annullaBtn = document.querySelector('#modal-content button:nth-child(5)');
 
-      attesa.style.display = "block";
-      confermaBtn.style.display = annullaBtn.style.display = "none";
+      if (attesa) attesa.style.display = "block";
+      if (confermaBtn) confermaBtn.style.display = "none";
+      if (annullaBtn) annullaBtn.style.display = "none";
 
       try {
-        const res = await fetch(scriptUrl + "?action=prenota", {
+        const res = await fetch(scriptUrl, {
           method: "POST",
-          body: JSON.stringify({ ordine: ordineDaInviare })
+          body: JSON.stringify({ action: "prenota", ordine: ordineDaInviare })
         });
-        await res.json();
+        const out = await res.json();
 
-        document.getElementById("notifica-successo").style.display = "block";
-        setTimeout(() => document.getElementById("notifica-successo").style.display = "none", 4000);
+        const notifica = document.getElementById("notifica-successo");
+        if (notifica) {
+          notifica.style.display = "block";
+          setTimeout(() => {
+            notifica.style.display = "none";
+          }, 4000);
+        }
 
         document.getElementById("riepilogo").innerText = "";
-        chiudiModal();
+        document.getElementById("modal").style.display = "none";
+        if (attesa) attesa.style.display = "none";
       } catch (e) {
         alert("Errore durante l'invio dell'ordine: " + e.message);
-        chiudiModal();
+        if (attesa) attesa.style.display = "none";
+      } finally {
+        if (document.getElementById("modal").style.display === "flex") {
+          if (confermaBtn) confermaBtn.style.display = "inline-block";
+          if (annullaBtn) annullaBtn.style.display = "inline-block";
+        }
+        if (confermaBtn) confermaBtn.disabled = false;
       }
 
       caricaProdotti();
     }
 
+    // Splash screen dissolve
     window.addEventListener("load", () => {
       setTimeout(() => {
-        document.getElementById("splash").style.opacity = 0;
-        setTimeout(() => document.getElementById("splash").style.display = "none", 1000);
+        const splash = document.getElementById("splash");
+        splash.style.opacity = 0;
+        setTimeout(() => splash.style.display = "none", 1000);
       }, 2500);
-      caricaProdotti();
     });
 
+    window.onload = caricaProdotti;
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('service-worker.js')
-        .then(() => console.log('✅ Service Worker registrato'))
-        .catch(err => console.error('❌ Service Worker:', err));
+  navigator.serviceWorker.register('service-worker.js')
+    .then(() => console.log('✅ Service Worker registrato'))
+    .catch(err => console.error('❌ Errore Service Worker:', err));
     }
   </script>
+
+  <div id="notifica-successo" style="
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #c8e6c9;
+    color: #2e7d32;
+    padding: 1rem 1.5rem;
+    text-align: center;
+    font-weight: bold;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 9999;
+  ">
+    ✅ Ordine inviato con successo!
+  </div>
+
+  <!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyCsdhMZqfh50Ar5Izqx-klAoMV4jvcifBo",
+    authDomain: "ordinipost.firebaseapp.com",
+    projectId: "ordinipost",
+    storageBucket: "ordinipost.appspot.com",
+    messagingSenderId: "671967993881",
+    appId: "1:671967993881:web:5aaa1b15139cbee6fa4a88"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const messaging = firebase.messaging();
+
+  async function richiediPermesso() {
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") {
+        const token = await messaging.getToken({
+          vapidKey: "BGuaJRdCBRTY0eqDAX9Un1RUVo5BRSMvcvDBKpkbWNrLRLeopVgIm9ZxG72mkuHXpe7jtCZ28-qos5fE5IOR6WE"
+        });
+
+        console.log("✅ Token:", token);
+
+        await fetch("https://script.google.com/macros/s/AKfycbxHTkILFghuXvjUJcImnH5pzvWyqtDer1wEUEjc3uGW-OGIVcuwUbeJJGRFWwCWhoqN/exec?action=salvaToken", {
+          method: "POST",
+          body: JSON.stringify({ token }),
+        });
+      }
+    } catch (err) {
+      console.error("❌ Errore token:", err);
+    }
+  }
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("firebase-messaging-sw.js")
+      .then(reg => {
+        console.log("✅ Service worker registrato");
+        messaging.useServiceWorker(reg);
+        richiediPermesso();
+      });
+  }
+</script>
 
 </body>
 </html>
