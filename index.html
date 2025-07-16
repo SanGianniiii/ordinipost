@@ -407,7 +407,7 @@
 
     window.onload = caricaProdotti;
     if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('firebase-messaging-sw.js')
+  navigator.serviceWorker.register('service-worker.js')
     .then(() => console.log('✅ Service Worker registrato'))
     .catch(err => console.error('❌ Errore Service Worker:', err));
     }
