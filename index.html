@@ -178,16 +178,22 @@
   const app = initializeApp(firebaseConfig);
 const messaging = getMessaging(app);
 
+// Registra il Service Worker
 navigator.serviceWorker
   .register('/ordinipost/firebase-messaging-sw.js')
-  .then((registration) => {
+  .then(() => {
     console.log('✅ Service Worker registrato');
 
+    return navigator.serviceWorker.ready;
+  })
+  .then((registration) => {
+    console.log('🟢 Service Worker attivo');
+
     return Notification.requestPermission().then((permission) => {
-      if (permission === "granted") {
+      if (permission === 'granted') {
         return getToken(messaging, {
-          vapidKey: "Iqwy9NBf6sYYad6tPbLs-DiSbgd5DF-Aowk7rmzl5Cw",
-          serviceWorkerRegistration: registration, // ✅ necessario
+          vapidKey: 'Iqwy9NBf6sYYad6tPbLs-DiSbgd5DF-Aowk7rmzl5Cw',
+          serviceWorkerRegistration: registration,
         });
       } else {
         throw new Error('❌ Permesso notifiche non concesso');
@@ -195,12 +201,12 @@ navigator.serviceWorker
     });
   })
   .then((token) => {
-    console.log('📬 FCM Token:', token);
-    // Puoi salvare il token nel tuo backend qui
+    console.log('📬 FCM Token ricevuto:', token);
   })
   .catch((err) => {
-    console.error('❌ Errore nella registrazione del Service Worker o nel recupero del token:', err);
+    console.error('❌ Errore:', err);
   });
+
 
   // 👉 Gestione messaggio quando la pagina è aperta
   onMessage(messaging, (payload) => {
