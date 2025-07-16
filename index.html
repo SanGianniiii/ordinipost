@@ -163,30 +163,45 @@
 </head>
 <body>
 <script type="module">
-    // Importa i moduli Firebase necessari
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-    // Puoi importare altri servizi man mano che li usi, ad esempio per FCM:
-    // import { getMessaging } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js';
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
 
-    // La configurazione del tuo progetto Firebase (copiata dal Passaggio 1)
-    const firebaseConfig = {
-      apiKey: "AIzaSyAY8l_GGRWPWi5BFpirUMXd2JN0MVZZpYM",
-      authDomain: "ordinipost-fcc7f.firebaseapp.com",
-      projectId: "ordinipost-fcc7f",
-      storageBucket: "ordinipost-fcc7f.appspot.com",
-      messagingSenderId: "363847145933",
-      appId: "1:363847145933:web:d1590848833eb147590c84",
-      // ... altri parametri se presenti
-    };
+  const firebaseConfig = {
+    apiKey: "AIzaSyAY8l_GGRWPWi5BFpirUMXd2JN0MVZZpYM",
+    authDomain: "ordinipost-fcc7f.firebaseapp.com",
+    projectId: "ordinipost-fcc7f",
+    storageBucket: "ordinipost-fcc7f.appspot.com",
+    messagingSenderId: "363847145933",
+    appId: "1:363847145933:web:d1590848833eb147590c84",
+  };
 
-    // Inizializza Firebase
-    const app = initializeApp(firebaseConfig);
+  const app = initializeApp(firebaseConfig);
+  const messaging = getMessaging(app);
 
-    // Ora puoi usare i servizi Firebase! Ad esempio, per FCM:
-    // const messaging = getMessaging(app);
-    // console.log("Firebase e Messaging inizializzati!");
+  // 👉 Chiedi permesso all’utente
+  Notification.requestPermission().then((permission) => {
+    if (permission === "granted") {
+      // 👉 Ottieni il token
+      getToken(messaging, {
+        vapidKey: "BHDqYF9cXPOQYBGdB4ivBtN8KH6gh3rc4VsvG6MN5T0ZChyC6CV9F7V8X9JSBdZSkM1rJfBhIQKFDu0oZmiNtfI", // <-- sostituisci con la tua chiave VAPID
+      }).then((token) => {
+        console.log("✅ Token ottenuto:", token);
+        // Puoi salvarlo su Google Sheets o usarlo da Firebase Console per testare
+      }).catch((err) => {
+        console.error("❌ Errore durante getToken:", err);
+      });
+    } else {
+      console.warn("❌ Permesso notifiche negato");
+    }
+  });
 
-  </script>
+  // 👉 Gestione messaggio quando la pagina è aperta
+  onMessage(messaging, (payload) => {
+    console.log("📩 Messaggio ricevuto in foreground:", payload);
+    alert(`📢 Notifica: ${payload.notification.title} - ${payload.notification.body}`);
+  });
+</script>
+
   <!-- Splash screen -->
   <div id="splash">
     <img src="logo.png" alt="Logo">
