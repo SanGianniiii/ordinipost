@@ -338,6 +338,9 @@
       document.getElementById("messaggioAttesa").style.display = "none";
     }
 
+    
+
+
     async function inviaOrdine() {
       const attesa = document.getElementById("messaggioAttesa");
       const confermaBtn = document.querySelector('#modal-content button:nth-child(4)');
@@ -431,7 +434,42 @@
     contenuto.innerText = "Errore durante il caricamento del riepilogo: " + err.message;
   }
 }
+ if ('Notification' in window && navigator.serviceWorker) {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+         controllaGiacenze(); // Avvio immediato
+      setInterval(controllaGiacenze, 300000); // Ogni 5 minuti
+    }
+  });
+}
+    function controllaGiacenze() {
+  fetch('https://script.google.com/macros/s/tuo-script-id/exec?action=read')
+    .then(res => res.json())
+    .then(data => {
+      data.forEach(prodotto => {
+        const { tipo, giacenza } = prodotto;
 
+        let messaggio = null;
+
+        if (giacenza === 0) messaggio = `⚠️ Il prodotto ${tipo} è esaurito!`;
+        else if (giacenza === 1) messaggio = `⚠️ Ultima unità per ${tipo}!`;
+        else if (giacenza <= 5) messaggio = `📦 Scorte molto basse (${giacenza}) per ${tipo}`;
+        else if (giacenza <= 10) messaggio = `ℹ️ Solo ${giacenza} unità rimaste per ${tipo}`;
+        else if (giacenza <= 20) messaggio = `ℹ️ Scorte in calo per ${tipo} (${giacenza})`;
+
+        if (messaggio && Notification.permission === 'granted') {
+          navigator.serviceWorker.getRegistration().then(reg => {
+            if (reg) {
+              reg.showNotification('Avviso Scorte', {
+                body: messaggio,
+                icon: 'logo.png'
+              });
+            }
+          });
+        }
+      });
+    });
+}
   </script>
 
   <div id="notifica-successo" style="
