@@ -206,8 +206,6 @@
   </div>
 
   <button onclick="confermaOrdine()">Prenota</button>
-  <button onclick="mostraRiepilogo()">Riepilogo Prenotazioni</button>
-
 
   <div id="riepilogo"></div>
 
@@ -225,13 +223,6 @@
     </div>
   </div>
 
-<div id="modal-riepilogo" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center;">
-  <div style="background:white; padding:2rem; border-radius:10px; max-width:90%; box-shadow:0 4px 12px rgba(0,0,0,0.2);">
-    <h3 style="color:#2e7d32;">🧾 Riepilogo Prenotazioni</h3>
-    <pre id="contenuto-riepilogo" style="white-space: pre-wrap;"></pre>
-    <button onclick="chiudiRiepilogo()">Chiudi</button>
-  </div>
-</div>
   <script>
     const scriptUrl = "https://script.google.com/macros/s/AKfycbxHTkILFghuXvjUJcImnH5pzvWyqtDer1wEUEjc3uGW-OGIVcuwUbeJJGRFWwCWhoqN/exec";
     let prodotti = [];
@@ -254,15 +245,15 @@
     function mostraTabella() {
       let html = "<table><tr><th>Prodotto</th><th>Disponibile</th><th>Quantità</th></tr>";
       prodotti.forEach((p, i) => {
-        html += `<tr>
+        html += <tr>
                   <td>${p.tipo}</td>
                   <td>${p.giacenza}</td>
                   <td>${
                     p.giacenza == 0
                       ? '<span style="color:red; font-weight:bold;">SoldOut</span>'
-                      : `<input type="number" id="quantita-${i}" min="0" max="${p.giacenza}" />`
+                      : <input type="number" id="quantita-${i}" min="0" max="${p.giacenza}" />
                   }</td>
-                </tr>`;
+                </tr>;
       });
       html += "</table>";
       document.getElementById("prodotti").innerHTML = html;
@@ -277,13 +268,13 @@
       const ordine = [];
       for (let i = 0; i < prodotti.length; i++) {
         const p = prodotti[i];
-        const input = document.getElementById(`quantita-${i}`);
+        const input = document.getElementById(quantita-${i});
         if (!input) continue;
 
         const qty = parseInt(input.value) || 0;
 
         if (qty > p.giacenza) {
-          alert(`Attenzione: la giacenza del prodotto "${p.tipo}" è inferiore alla richiesta, modificalo.`);
+          alert(Attenzione: la giacenza del prodotto "${p.tipo}" è inferiore alla richiesta, modificalo.);
           return;
         }
 
@@ -294,8 +285,8 @@
 
       if (ordine.length === 0) return alert("Nessun prodotto selezionato.");
 
-      let riepilogo = `Famiglia: ${nome}\n\n`;
-      ordine.forEach(o => riepilogo += `- ${o.prodotto}: ${o.quantita}\n`);
+      let riepilogo = Famiglia: ${nome}\n\n;
+      ordine.forEach(o => riepilogo += - ${o.prodotto}: ${o.quantita}\n);
 
       ordineDaInviare = ordine;
       document.getElementById("riepilogoModal").innerText = riepilogo;
@@ -330,34 +321,6 @@
             notifica.style.display = "none";
           }, 4000);
         }
-async function mostraRiepilogo() {
-  const nome = document.getElementById("nome").value.trim();
-  if (!nome) return alert("Seleziona il nome della tua famiglia.");
-
-  try {
-    const res = await fetch(scriptUrl + "?action=riepilogo&nome=" + encodeURIComponent(nome));
-    const dati = await res.json();
-
-    if (!dati || dati.length === 0) {
-      alert("Nessuna prenotazione trovata per la famiglia selezionata.");
-      return;
-    }
-
-    let testo = `Famiglia: ${nome}\n\n`;
-    dati.forEach(p => {
-      testo += `- ${p.prodotto}: ${p.quantita}\n`;
-    });
-
-    document.getElementById("contenuto-riepilogo").innerText = testo;
-    document.getElementById("modal-riepilogo").style.display = "flex";
-  } catch (e) {
-    alert("Errore nel caricamento del riepilogo: " + e.message);
-  }
-}
-
-function chiudiRiepilogo() {
-  document.getElementById("modal-riepilogo").style.display = "none";
-}
 
         document.getElementById("riepilogo").innerText = "";
         document.getElementById("modal").style.display = "none";
