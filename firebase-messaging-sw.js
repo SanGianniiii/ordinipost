@@ -3,11 +3,10 @@
 // (NUOVO) Logica di caching da service-worker.js
 const CACHE_NAME = 'ordini-post-v1'; // Incrementa la versione se cambi i file in cache
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/logo.png',
-  '/manifest.json'
-  // Aggiungi qui altri file statici che vuoi mettere in cache
+  '/ordinipost/',
+  '/ordinipost/index.html',
+  '/ordinipost/logo.png',
+  '/ordinipost/manifest.json'
 ];
 
 self.addEventListener('install', function(e) {
@@ -53,7 +52,7 @@ self.addEventListener('notificationclick', function(event) {
 
   // Puoi aprire una URL specifica
   event.waitUntil(
-    clients.openWindow('/') // oppure event.notification.data.url o una pagina specifica
+    clients.openWindow('/ordinipost/');
   );
 });
 
