@@ -110,7 +110,6 @@
       display: none;
       justify-content: center;
       align-items: center;
-      z-index: 999;
     }
 
     #modal-content {
@@ -164,28 +163,31 @@
 </head>
 <body>
 <script type="module">
-// Questo blocco di script 'module' deve essere integrato con le librerie Firebase,
-// che non possono essere incluse qui in HTML purtroppo.
-// L'import e l'uso di 'messaging' (getToken, onMessage) devono essere adattati
-// all'ambiente in cui l'HTML è eseguito (ad esempio, se è Firebase Hosting).
-// Lascio la logica così come l'avevi impostata, assumendo che i moduli di firebase siano gestiti altrove.
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
 
-/*
-// Se usi i moduli ES6, devi assicurarti che Firebase sia accessibile:
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
+  const firebaseConfig = {
+    apiKey: "AIzaSyAY8l_GGRWPWi5BFpirUMXd2JN0MVZZpYM",
+    authDomain: "ordinipost-fcc7f.firebaseapp.com",
+    projectId: "ordinipost-fcc7f",
+    storageBucket: "ordinipost-fcc7f.appspot.com",
+    messagingSenderId: "363847145933",
+    appId: "1:363847145933:web:d1590848833eb147590c84",
+  };
 
-const firebaseConfig = {
-    // TUA CONFIGURAZIONE
-};
-const app = initializeApp(firebaseConfig);
-const messaging = getMessaging(app);
+  const app = initializeApp(firebaseConfig);
+  const messaging = getMessaging(app);
 
-// Registra il Service Worker
+// Registra il Service Worker e gestisce il token FCM
 navigator.serviceWorker
-  .register('/ordinipost/service-workersw.js') // ATTENZIONE AL PERCORSO se non sei in /ordinipost/
+  .register('/ordinipost/firebase-messaging-sw.js')
+  .then(() => {
+    console.log('✅ Service Worker registrato');
+
+    return navigator.serviceWorker.ready;
+  })
   .then((registration) => {
-    console.log('✅ Service Worker registrato e attivo');
+    console.log('🟢 Service Worker attivo');
 
     return Notification.requestPermission().then((permission) => {
       if (permission === 'granted') {
@@ -200,18 +202,29 @@ navigator.serviceWorker
   })
   .then((token) => {
     console.log('📬 FCM Token ricevuto:', token);
+    
+    // NUOVO: Iscrizione al topic 'stock_alerts'
+    // L'iscrizione è necessaria per ricevere le notifiche di scorte inviate da Apps Script
+    return fetch('https://iid.googleapis.com/iid/v1/' + token + '/rel/topics/stock_alerts', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'key=' + firebaseConfig.apiKey // Si usa la Web API Key per l'iscrizione
+      }
+    });
+  })
+  .then(() => {
+    console.log('✅ Iscritto al topic stock_alerts');
   })
   .catch((err) => {
-    console.error('❌ Errore FCM/SW:', err);
+    console.error('❌ Errore nella registrazione o iscrizione:', err);
   });
 
 
-  // 👉 Gestione messaggio quando la pagina è aperta
+  // Gestione messaggio quando la pagina è aperta (foreground)
   onMessage(messaging, (payload) => {
     console.log("📩 Messaggio ricevuto in foreground:", payload);
-    alert(`📢 Notifica: ${payload.notification.title} - ${payload.notification.body}`);
+    alert(`📢 Notifica Scorte: ${payload.notification.title} - ${payload.notification.body}`);
   });
-*/
 </script>
 
     <div id="splash">
@@ -260,11 +273,11 @@ navigator.serviceWorker
         ⏳ Attendi, il tuo ordine sta per essere processato...
         <span class="spinner"></span>
       </div>
-      <button id="btnConferma" onclick="inviaOrdine()">Conferma</button>
-      <button id="btnAnnulla" onclick="chiudiModal()">Annulla</button>
+      <button onclick="inviaOrdine()">Conferma</button>
+      <button onclick="chiudiModal()">Annulla</button>
     </div>
   </div>
-<div id="modal-riepilogo" style="display:none; position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);justify-content:center;align-items:center; z-index: 999;">
+<div id="modal-riepilogo" style="display:none; position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);justify-content:center;align-items:center;">
   <div style="background:#fff; padding:20px; border-radius:10px; max-width:500px; width:90%; max-height:80vh; overflow-y:auto;">
     <h3>Riepilogo Prenotazioni</h3>
     <div id="spinner-riepilogo" style="display:none; color:#2e7d32; font-weight:bold; margin-bottom: 1rem;">
@@ -276,7 +289,7 @@ navigator.serviceWorker
   </div>
 </div>
   <script>
-    // Usa il tuo scriptUrl reale
+    // Usa la stessa URL dello script
     const scriptUrl = "https://script.google.com/macros/s/AKfycbzeUhhMfbrOoNOC0poIgowaD-LII689HLXpoHrv9GwsI5lx5TqEtva47ZW3DHJI1qjMkA/exec";
     let prodotti = [];
     let ordineDaInviare = [];
@@ -342,23 +355,20 @@ navigator.serviceWorker
       ordine.forEach(o => riepilogo += `- ${o.prodotto}: ${o.quantita}\n`);
 
       ordineDaInviare = ordine;
-      document.getElementById("riepilogoModal").innerText = riepilogo;
+  document.getElementById("riepilogoModal").innerText = riepilogo;
 
-      const confermaBtn = document.getElementById('btnConferma');
-      const annullaBtn = document.getElementById('btnAnnulla');
-      const attesa = document.getElementById("messaggioAttesa");
+  const confermaBtn = document.querySelector('#modal-content button:nth-child(4)');
+  const annullaBtn = document.querySelector('#modal-content button:nth-child(5)');
 
-      if (confermaBtn) {
-        confermaBtn.style.display = "inline-block";
-        confermaBtn.disabled = false;
-      }
-      if (annullaBtn) {
-        annullaBtn.style.display = "inline-block";
-      }
-      if (attesa) attesa.style.display = "none";
-      
+  if (confermaBtn) {
+    confermaBtn.style.display = "inline-block";
+    confermaBtn.disabled = false;
+  }
+  if (annullaBtn) {
+    annullaBtn.style.display = "inline-block";
+  }
 
-      document.getElementById("modal").style.display = "flex";
+  document.getElementById("modal").style.display = "flex";
 
     }
 
@@ -368,14 +378,11 @@ navigator.serviceWorker
     }
 
     
-    // 👉 Funzione inviaOrdine MODIFICATA
     async function inviaOrdine() {
       const attesa = document.getElementById("messaggioAttesa");
-      const confermaBtn = document.getElementById('btnConferma');
-      const annullaBtn = document.getElementById('btnAnnulla');
-      const notificaDiv = document.getElementById("notifica-successo");
+      const confermaBtn = document.querySelector('#modal-content button:nth-child(4)');
+      const annullaBtn = document.querySelector('#modal-content button:nth-child(5)');
 
-      // Mostra messaggio di attesa e disabilita pulsanti
       if (attesa) attesa.style.display = "block";
       if (confermaBtn) confermaBtn.style.display = "none";
       if (annullaBtn) annullaBtn.style.display = "none";
@@ -385,48 +392,30 @@ navigator.serviceWorker
           method: "POST",
           body: JSON.stringify({ action: "prenota", ordine: ordineDaInviare })
         });
-        
-        // Gestione risposta JSON
         const out = await res.json();
 
-        // Controlla se la risposta contiene un errore (es. dal Lock Service in GAS)
-        if (out.message && out.message.includes("Errore")) {
-          throw new Error(out.message);
-        }
-
-        // Successo
-        if (notificaDiv) {
-          notificaDiv.innerText = "✅ Ordine inviato con successo!";
-          notificaDiv.style.backgroundColor = "#c8e6c9"; 
-          notificaDiv.style.color = "#2e7d32";
-          notificaDiv.style.display = "block";
+        const notifica = document.getElementById("notifica-successo");
+        if (notifica) {
+          notifica.style.display = "block";
           setTimeout(() => {
-            notificaDiv.style.display = "none";
+            notifica.style.display = "none";
           }, 4000);
         }
 
         document.getElementById("modal").style.display = "none";
         if (attesa) attesa.style.display = "none";
-        
       } catch (e) {
-        // Errore
-        if (notificaDiv) {
-          notificaDiv.innerText = `❌ Errore durante l'invio: ${e.message}`;
-          notificaDiv.style.backgroundColor = "#ffcdd2"; 
-          notificaDiv.style.color = "#d32f2f"; 
-          notificaDiv.style.display = "block";
-          setTimeout(() => {
-            notificaDiv.style.display = "none";
-          }, 6000); 
-        }
-        
+        alert("Errore durante l'invio dell'ordine: " + e.message);
         if (attesa) attesa.style.display = "none";
-        // Riabilita i pulsanti e non chiudere il modale per permettere all'utente di riprovare o annullare
-        if (confermaBtn) confermaBtn.style.display = "inline-block";
-        if (annullaBtn) annullaBtn.style.display = "inline-block";
       } finally {
-        caricaProdotti(); // Ricarica le giacenze aggiornate o per resettare i valori
+        if (document.getElementById("modal").style.display === "flex") {
+          if (confermaBtn) confermaBtn.style.display = "inline-block";
+          if (annullaBtn) annullaBtn.style.display = "inline-block";
+        }
+        if (confermaBtn) confermaBtn.disabled = false;
       }
+
+      caricaProdotti();
     }
 
     // Splash screen dissolve
@@ -439,96 +428,46 @@ navigator.serviceWorker
     });
 
     window.onload = caricaProdotti;
-    if ('serviceWorker' in navigator) {
-      // Il percorso corretto del service worker dipende dalla tua struttura di hosting
-      navigator.serviceWorker.register('/ordinipost/service-worker.js') 
-        .then(() => console.log('✅ Service Worker registrato'))
-        .catch(err => console.error('❌ Errore Service Worker:', err));
-    }
-
-    async function mostraRiepilogoPrenotazioni() {
-      const nominativo = document.getElementById('nome').value.trim();
-      if (!nominativo) {
-        alert("Seleziona prima un nominativo dalla lista.");
-        return;
-      }
-
-      const spinner = document.getElementById("spinner-riepilogo");
-      const contenuto = document.getElementById("contenuto-riepilogo");
-
-      // Pulisci contenuto e mostra spinner
-      contenuto.innerText = "";
-      spinner.style.display = "block";
-      document.getElementById('modal-riepilogo').style.display = "flex";
-
-      try {
-        const url = scriptUrl + "?action=riepilogo&nominativo=" + encodeURIComponent(nominativo);
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("Errore di rete nel recupero dati");
-        const data = await res.json();
-
-        spinner.style.display = "none"; // Nascondi spinner
-
-        if (data.length === 0) {
-          contenuto.innerText = `Nessuna prenotazione trovata o errore di configurazione nel foglio per ${nominativo}.`;
-        } else {
-          let testo = `Riepilogo prenotazioni per ${nominativo}:\n\n`;
-          data.forEach(item => {
-            // Filtra valori vuoti o nulli
-            if (item.valore) {
-              testo += `- ${item.prodotto}: ${item.valore}\n`;
-            }
-          });
-          if (testo === `Riepilogo prenotazioni per ${nominativo}:\n\n`) {
-             contenuto.innerText = `Nessuna prenotazione attiva per ${nominativo}.`;
-          } else {
-             contenuto.innerText = testo;
-          }
-        }
-      } catch (err) {
-        spinner.style.display = "none"; // Nascondi spinner in caso di errore
-        contenuto.innerText = "Errore durante il caricamento del riepilogo: " + err.message;
-      }
-    }
     
-    // Logica di controllo giacenze rimane invariata e va bene
-    if ('Notification' in window && navigator.serviceWorker) {
-      Notification.requestPermission().then(permission => {
-        if (permission === 'granted') {
-         controllaGiacenze(); // Avvio immediato
-         setInterval(controllaGiacenze, 300000); // Ogni 5 minuti
-        }
+    // La registrazione del service worker è gestita nello script type="module" in cima
+    
+    async function mostraRiepilogoPrenotazioni() {
+  const nominativo = document.getElementById('nome').value.trim();
+  if (!nominativo) {
+    alert("Seleziona prima un nominativo dalla lista.");
+    return;
+  }
+
+  const spinner = document.getElementById("spinner-riepilogo");
+  const contenuto = document.getElementById("contenuto-riepilogo");
+
+  // Pulisci contenuto e mostra spinner
+  contenuto.innerText = "";
+  spinner.style.display = "block";
+  document.getElementById('modal-riepilogo').style.display = "flex";
+
+  try {
+    const url = scriptUrl + "?action=riepilogo&nominativo=" + encodeURIComponent(nominativo);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Errore nel recupero dati");
+    const data = await res.json();
+
+    spinner.style.display = "none"; // Nascondi spinner
+
+    if (data.length === 0) {
+      contenuto.innerText = `Nessuna prenotazione trovata per ${nominativo}.`;
+    } else {
+      let testo = `Riepilogo prenotazioni per ${nominativo}:\n\n`;
+      data.forEach(item => {
+        testo += `- ${item.prodotto}: ${item.valore}\n`;
       });
+      contenuto.innerText = testo;
     }
-
-    function controllaGiacenze() {
-      fetch('https://script.google.com/macros/s/AKfycbzeUhhMfbrOoNOC0poIgowaD-LII689HLXpoHrv9GwsI5lx5TqEtva47ZW3DHJI1qjMkA/exec?action=read')
-        .then(res => res.json())
-        .then(data => {
-          data.forEach(prodotto => {
-            const { tipo, giacenza } = prodotto;
-
-            let messaggio = null;
-
-            if (giacenza === 0) messaggio = `⚠️ Il prodotto ${tipo} è esaurito!`;
-            else if (giacenza === 1) messaggio = `⚠️ Ultima unità per ${tipo}!`;
-            else if (giacenza <= 5) messaggio = `📦 Scorte molto basse (${giacenza}) per ${tipo}`;
-            else if (giacenza <= 10) messaggio = `ℹ️ Solo ${giacenza} unità rimaste per ${tipo}`;
-            else if (giacenza <= 20) messaggio = `ℹ️ Scorte in calo per ${tipo} (${giacenza})`;
-
-            if (messaggio && Notification.permission === 'granted') {
-              navigator.serviceWorker.getRegistration().then(reg => {
-                if (reg) {
-                  reg.showNotification('Avviso Scorte', {
-                    body: messaggio,
-                    icon: 'logo.png'
-                  });
-                }
-              });
-            }
-          });
-        });
-    }
+  } catch (err) {
+    spinner.style.display = "none"; // Nascondi spinner in caso di errore
+    contenuto.innerText = "Errore durante il caricamento del riepilogo: " + err.message;
+  }
+}
   </script>
 
   <div id="notifica-successo" style="
@@ -546,7 +485,8 @@ navigator.serviceWorker
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     z-index: 9999;
   ">
-      </div>
+    ✅ Ordine inviato con successo!
+  </div>
 
 </body>
 </html>
