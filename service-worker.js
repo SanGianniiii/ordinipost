@@ -1,11 +1,10 @@
-// firebase-messaging-sw.js
+// firebase-messaging-sw.js O service-worker.js
 
-const CACHE_NAME = 'ordini-post-v1'; 
+const CACHE_NAME = 'ordini-post-v2'; // Incrementato per forzare l'aggiornamento
 const urlsToCache = [
-  'index.html',     // Rimosso lo slash iniziale (/)
-  'logo.png',       // Rimosso lo slash iniziale (/)
-  'manifest.json'   // Rimosso lo slash iniziale (/)
-  // Rimosso il percorso radice '/' che è problematico
+  'index.html',
+  'logo.png',
+  'manifest.json'
 ];
 
 self.addEventListener('install', function(e) {
@@ -14,7 +13,7 @@ self.addEventListener('install', function(e) {
     caches.open(CACHE_NAME).then(function(cache) {
       console.log('[SW] Caching assets');
       return cache.addAll(urlsToCache);
-    }).then(() => self.skipWaiting()) 
+    }).then(() => self.skipWaiting()) 
   );
 });
 
@@ -30,11 +29,17 @@ self.addEventListener('activate', function(e) {
           }
         })
       );
-    }).then(() => self.clients.claim()) 
+    }).then(() => self.clients.claim()) 
   );
 });
 
+// Strategia Fetch: Cache First per asset, Network Only per GAS Script
 self.addEventListener('fetch', function(e) {
+  // Esclude esplicitamente lo script GAS dalla cache per avere dati in tempo reale
+  if (e.request.url.includes("script.google.com/macros/s/")) {
+    return e.respondWith(fetch(e.request));
+  }
+  
   e.respondWith(
     caches.match(e.request).then(function(response) {
       return response || fetch(e.request);
@@ -47,13 +52,14 @@ self.addEventListener('notificationclick', function(event) {
   event.notification.close();
 
   event.waitUntil(
-    clients.openWindow('/') 
+    clients.openWindow('/') 
   );
 });
 
 
 // -------- INIZIO LOGICA FIREBASE CLOUD MESSAGING --------
-
+// ATTENZIONE: i percorsi degli importScripts DEVONO essere corretti
+// rispetto al file system in cui viene caricato il Service Worker.
 importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js");
 
@@ -76,7 +82,7 @@ messaging.onBackgroundMessage((payload) => {
   const notificationOptions = {
     body: payload.notification.body || '',
     icon: payload.notification.icon || '/logo.png',
-    data: payload.data, 
+    data: payload.data, 
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
