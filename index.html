@@ -163,24 +163,11 @@
 </head>
 <body>
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyAY8l_GGRWPWi5BFpirUMXd2JN0MVZZpYM",
-    authDomain: "ordinipost-fcc7f.firebaseapp.com",
-    projectId: "ordinipost-fcc7f",
-    storageBucket: "ordinipost-fcc7f.appspot.com",
-    messagingSenderId: "363847145933",
-    appId: "1:363847145933:web:d1590848833eb147590c84",
-  };
-
-  const app = initializeApp(firebaseConfig);
-const messaging = getMessaging(app);
+  
 
 // Registra il Service Worker
 navigator.serviceWorker
-  .register('/ordinipost/firebase-messaging-sw.js')
+  .register('/ordinipost/service-worker.js')
   .then(() => {
     console.log('✅ Service Worker registrato');
 
@@ -420,7 +407,7 @@ navigator.serviceWorker
 
     window.onload = caricaProdotti;
     if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/ordinipost/firebase-messaging-sw.js')
+  navigator.serviceWorker.register('/ordinipost/service-worker.js')
     .then(() => console.log('✅ Service Worker registrato'))
     .catch(err => console.error('❌ Errore Service Worker:', err));
     }
