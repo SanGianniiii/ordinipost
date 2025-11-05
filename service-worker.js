@@ -2,10 +2,10 @@
 
 const CACHE_NAME = 'ordini-post-v1'; 
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/logo.png',
-  '/manifest.json'
+  'index.html',     // Rimosso lo slash iniziale (/)
+  'logo.png',       // Rimosso lo slash iniziale (/)
+  'manifest.json'   // Rimosso lo slash iniziale (/)
+  // Rimosso il percorso radice '/' che è problematico
 ];
 
 self.addEventListener('install', function(e) {
