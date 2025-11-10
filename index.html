@@ -284,7 +284,8 @@ navigator.serviceWorker
     const scriptUrl = "https://script.google.com/macros/s/AKfycbzeUhhMfbrOoNOC0poIgowaD-LII689HLXpoHrv9GwsI5lx5TqEtva47ZW3DHJI1qjMkA/exec";
     let prodotti = [];
     let ordineDaInviare = [];
-
+    let riepilogoCorrente = [];
+    
     async function caricaProdotti() {
       try {
         const res = await fetch(scriptUrl + "?action=read");
@@ -427,51 +428,130 @@ navigator.serviceWorker
     .catch(err => console.error('❌ Errore Service Worker:', err));
     }
 
-    async function mostraRiepilogoPrenotazioni() {
-  const nominativo = document.getElementById('nome').value.trim();
-  if (!nominativo) {
-    alert("Seleziona prima un nominativo dalla lista.");
-    return;
-  }
+   async function mostraRiepilogoPrenotazioni() {
+    const nominativo = document.getElementById('nome').value.trim();
+    if (!nominativo) return alert("Seleziona prima un nominativo.");
 
-  const spinner = document.getElementById("spinner-riepilogo");
-  const contenuto = document.getElementById("contenuto-riepilogo");
+    const spinner = document.getElementById("spinner-riepilogo");
+    const contenuto = document.getElementById("contenuto-riepilogo");
+    contenuto.innerHTML = ""; // Svuota il contenuto precedente
+    spinner.style.display = "block";
+    document.getElementById('modal-riepilogo').style.display = "flex";
 
-  // Pulisci contenuto e mostra spinner
-  contenuto.innerText = "";
-  spinner.style.display = "block";
-  document.getElementById('modal-riepilogo').style.display = "flex";
+    try {
+      const url = scriptUrl + "?action=riepilogo&nominativo=" + encodeURIComponent(nominativo);
+      const res = await fetch(url);
+      const data = await res.json();
+      
+      riepilogoCorrente = data; // Salva i dati per la funzione di annullamento
+      spinner.style.display = "none";
+      
+      // Filtra solo i prodotti con prenotazioni attive
+      const prenotazioniAttive = data.filter(item => item.valore > 0);
 
-  try {
-    const url = scriptUrl + "?action=riepilogo&nominativo=" + encodeURIComponent(nominativo);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("Errore nel recupero dati");
-    const data = await res.json();
+      if (!prenotazioniAttive.length) {
+        contenuto.innerText = `Nessuna prenotazione attiva per ${nominativo}.`;
+        return;
+      }
 
-    spinner.style.display = "none"; // Nascondi spinner
-
-    if (data.length === 0) {
-      contenuto.innerText = `Nessuna prenotazione trovata per ${nominativo}.`;
-    } else {
-      let testo = `Riepilogo prenotazioni per ${nominativo}:\n\n`;
-      data.forEach(item => {
-        testo += `- ${item.prodotto}: ${item.valore}\n`;
+      // Costruisci la tabella HTML interattiva
+      let html = `<p>Riepilogo per <strong>${nominativo}</strong>. Inserisci la quantità che desideri annullare.</p>`;
+      html += `<table style="width:100%; text-align:center;">
+                 <tr><th>Prodotto</th><th>Prenotati</th><th>Qtà da Annullare</th></tr>`;
+      
+      prenotazioniAttive.forEach((item, i) => {
+        // Usiamo l'indice 'i' SUI DATI FILTRATI per creare ID unici
+        html += `<tr>
+                   <td>${item.prodotto}</td>
+                   <td><strong>${item.valore}</strong></td>
+                   <td>
+                     <input type="number" id="annulla-${i}" 
+                            min="0" max="${item.valore}" value="0" 
+                            style="width: 70px; padding: 0.4rem; margin-top: 0;">
+                   </td>
+                 </tr>`;
       });
-      contenuto.innerText = testo;
+      
+      html += `</table><br>`;
+      // Aggiungi un nuovo pulsante per confermare gli annullamenti
+      html += `<button id="btnConfermaAnnullamento" onclick="inviaAnnullamento()">Conferma Annullamenti</button>`;
+
+      contenuto.innerHTML = html; // Usa innerHTML per renderizzare l'HTML
+
+    } catch (err) {
+      spinner.style.display = "none";
+      contenuto.innerText = "Errore: " + err.message;
     }
-  } catch (err) {
-    spinner.style.display = "none"; // Nascondi spinner in caso di errore
-    contenuto.innerText = "Errore durante il caricamento del riepilogo: " + err.message;
   }
-}
- if ('Notification' in window && navigator.serviceWorker) {
-      Notification.requestPermission().then(permission => {
-        if (permission === 'granted') {
-         controllaGiacenze(); // Avvio immediato
-      setInterval(controllaGiacenze, 300000); // Ogni 5 minuti
+
+    async function inviaAnnullamento() {
+    const nome = document.getElementById("nome").value.trim();
+    const btn = document.getElementById("btnConfermaAnnullamento");
+    
+    // Disabilita il pulsante e mostra uno spinner
+    btn.disabled = true;
+    btn.innerHTML = 'Elaborazione... <span class="spinner"></span>';
+
+    const ordineDiAnnullamento = [];
+    let errore = false;
+
+    // Ricrea la lista delle sole prenotazioni attive per far corrispondere gli indici
+    const prenotazioniAttive = riepilogoCorrente.filter(item => item.valore > 0);
+
+    prenotazioniAttive.forEach((item, i) => {
+      const input = document.getElementById(`annulla-${i}`);
+      if (input) {
+        const qtyDaAnnullare = parseInt(input.value) || 0;
+        
+        if (qtyDaAnnullare > item.valore) {
+          alert(`Errore: Non puoi annullare ${qtyDaAnnullare} ${item.prodotto}, ne hai prenotati solo ${item.valore}.`);
+          errore = true;
+        }
+
+        if (qtyDaAnnullare > 0) {
+          ordineDiAnnullamento.push({
+            nome: nome,
+            prodotto: item.prodotto,
+            quantita: -qtyDaAnnullare // <-- QUI LA MAGIA! Quantità negativa
+          });
+        }
+      }
+    });
+
+    if (errore) {
+      btn.disabled = false;
+      btn.innerHTML = 'Conferma Annullamenti';
+      return; // Blocca l'invio se c'è stato un errore di validazione
     }
-  });
-}
+
+    if (ordineDiAnnullamento.length === 0) {
+      alert("Nessuna quantità da annullare inserita.");
+      btn.disabled = false;
+      btn.innerHTML = 'Conferma Annullamenti';
+      return;
+    }
+
+    // Usiamo la STESSA logica di inviaOrdine() per inviare i dati
+    try {
+      const res = await fetch(scriptUrl, {
+        method: "POST",
+        body: JSON.stringify({ action: "prenota", ordine: ordineDiAnnullamento })
+      });
+      await res.json();
+      
+      alert("✅ Annullamento registrato con successo!");
+      
+      // Chiudi il modale e ricarica la giacenza
+      document.getElementById('modal-riepilogo').style.display = "none";
+      caricaProdotti(); 
+      
+    } catch (e) {
+      alert("Errore invio annullamento: " + e.message);
+      btn.disabled = false;
+      btn.innerHTML = 'Conferma Annullamenti';
+    }
+  }
+    
     function controllaGiacenze() {
   fetch('https://script.google.com/macros/s/AKfycbzeUhhMfbrOoNOC0poIgowaD-LII689HLXpoHrv9GwsI5lx5TqEtva47ZW3DHJI1qjMkA/exec?action=read')
     .then(res => res.json())
