@@ -7,6 +7,7 @@ const urlsToCache = [
   '/ordinipost/index.html',
   '/ordinipost/logo.png',
   '/ordinipost/manifest.json'
+  '/panetprova/jhs.mp4'
 ];
 
 self.addEventListener('install', function(e) {
