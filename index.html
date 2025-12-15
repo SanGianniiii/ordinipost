@@ -29,12 +29,10 @@
       transition: opacity 1s ease-out;
     }
 
-   #splash video {
-      width: 100%;           /* Si adatta alla larghezza */
-      max-width: 500px;      /* Non diventa troppo gigante su PC */
-      height: auto;          /* Mantiene le proporzioni originali */
+#splash img {
+      width: 400px;
+      height: 400px;
       animation: fadeIn 1s ease-in-out;
-      border-radius: 15px;   /* Opzionale: arrotonda un po' gli angoli */
     }
 
     @keyframes fadeIn {
@@ -218,12 +216,7 @@ navigator.serviceWorker
 </script>
 
   <!-- Splash screen -->
-  <div id="splash">
-  <video autoplay muted loop playsinline>
-    <source src="jhs.mp4" type="video/mp4">
-    <img src="logo.png" alt="Logo"> 
-  </video>
-</div>
+<div id="splash"><img src="logo.png" alt="Logo"></div>
 
   <header>
     <img src="logo.png" alt="Logo" />
@@ -423,7 +416,7 @@ navigator.serviceWorker
         const splash = document.getElementById("splash");
         splash.style.opacity = 0;
         setTimeout(() => splash.style.display = "none", 3000);
-      }, 5000);
+      }, 2000);
     });
 
     window.onload = caricaProdotti;
