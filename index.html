@@ -439,13 +439,20 @@ navigator.serviceWorker
     try {
       const url = scriptUrl + "?action=riepilogo&nominativo=" + encodeURIComponent(nominativo);
       const res = await fetch(url);
-      const data = await res.json();
       
-      riepilogoCorrente = data; // Salva i dati per la funzione di annullamento
+      // Ora data conterrà { ordini: [...], totalePezzi: X, totalePrezzo: Y }
+      const responseData = await res.json();
+      
+      // Gestiamo i nuovi dati
+      const dataOrdini = responseData.ordini ? responseData.ordini : responseData;
+      const totalePezzi = responseData.totalePezzi || 0;
+      const totalePrezzo = responseData.totalePrezzo || 0;
+      
+      riepilogoCorrente = dataOrdini; // Salva i dati per la funzione di annullamento
       spinner.style.display = "none";
       
       // Filtra solo i prodotti con prenotazioni attive
-      const prenotazioniAttive = data.filter(item => item.valore > 0);
+      const prenotazioniAttive = dataOrdini.filter(item => item.valore > 0);
 
       if (!prenotazioniAttive.length) {
         contenuto.innerText = `Nessuna prenotazione attiva per ${nominativo}.`;
@@ -458,7 +465,6 @@ navigator.serviceWorker
                  <tr><th>Prodotto</th><th>Prenotati</th><th>Qtà da Annullare</th></tr>`;
       
       prenotazioniAttive.forEach((item, i) => {
-        // Usiamo l'indice 'i' SUI DATI FILTRATI per creare ID unici
         html += `<tr>
                    <td>${item.prodotto}</td>
                    <td><strong>${item.valore}</strong></td>
@@ -470,11 +476,22 @@ navigator.serviceWorker
                  </tr>`;
       });
       
-      html += `</table><br>`;
+      html += `</table>`;
+      
+      // --- SEZIONE TOTALI AGGIUNTA QUI ---
+      // Stampiamo un box carino sotto la tabella con i dati estratti dalle righe 12 e 14
+      html += `
+        <div style="background-color: #e8f5e9; padding: 15px; margin-top: 20px; border-radius: 8px; text-align: right; color: #2e7d32; font-size: 1.1rem; border: 1px solid #a5d6a7;">
+          <strong>Totale Panettoni:</strong> ${totalePezzi} pz<br>
+          <strong>Totale da Pagare:</strong> € ${totalePrezzo}
+        </div>
+        <br>
+      `;
+
       // Aggiungi un nuovo pulsante per confermare gli annullamenti
       html += `<button id="btnConfermaAnnullamento" onclick="inviaAnnullamento()">Conferma Annullamenti</button>`;
 
-      contenuto.innerHTML = html; // Usa innerHTML per renderizzare l'HTML
+      contenuto.innerHTML = html; 
 
     } catch (err) {
       spinner.style.display = "none";
