@@ -176,7 +176,7 @@ button:hover { background-color: #1b5e20; }
     </div>
 
     <button onclick="confermaOrdine()">🚀 Invia Prenotazione</button>
-    <button class="btn-dark" onclick="mostraRiepilogoPrenotazioni()">📊 Vedi Mio Riepilogo</button>
+    <button class="btn-dark" onclick="mostraRiepilogoPrenotazioni()">📊 Visualizza Riepilogo</button>
 </div>
 
 <div id="modal">
@@ -306,7 +306,7 @@ button:hover { background-color: #1b5e20; }
   function preparaModificaDettaglio() {
     const fam = document.getElementById("nome").value;
     const modifiche = [];
-    let riepilogoTesto = `⚠️ MODIFICA ESISTENTE\n\n`;
+    let riepilogoTesto = `⚠️ MODIFICA RICHIESTA\n\n`;
     
     const variazioniTotali = {};
 
