@@ -160,7 +160,7 @@
       document.getElementById("lista-prodotti").innerHTML = html;
     }
 
-    // 2. CONFERMA E SCRITTURA ORDINE TRAMITE TRANSAZIONE ATOMICA
+    // 2. CONFERMA E SCRITTURA ORDINE TRAMITE TRANSAZIONE ATOMICA (CORRETTA)
     window.eseguiOperazioneBackend = async function() {
       if (!window.payloadTemporaneo || window.payloadTemporaneo.length === 0) return;
       document.getElementById("modal").style.display = "none";
@@ -168,31 +168,46 @@
 
       try {
         await runTransaction(db, async (transaction) => {
+          
+          // FASE 1: Esegui TUTTI i READ (Letture) e controlli prima
+          const operazioniPronte = [];
+
           for (const item of window.payloadTemporaneo) {
             const prodRef = doc(db, "prodotti", item.prodottoId);
             const prodDoc = await transaction.get(prodRef);
 
             if (!prodDoc.exists()) throw new Error(`Prodotto ${item.prodotto} non trovato!`);
-            const giacenzaAttuale = prodDoc.data().giacenza;
+            const datiProd = prodDoc.data();
+            const giacenzaAttuale = datiProd.giacenza;
 
             if (giacenzaAttuale < item.quantita) {
               throw new Error(`Disponibilità insufficiente per ${item.prodotto}! Rimasti: ${giacenzaAttuale}`);
             }
 
+            operazioniPronte.push({
+              prodRef,
+              datiProd,
+              item,
+              giacenzaAttuale
+            });
+          }
+
+          // FASE 2: Esegui TUTTI i WRITE (Scritture) dopo le letture
+          for (const op of operazioniPronte) {
             // Aggiorna giacenza
-            transaction.update(prodRef, {
-              giacenza: giacenzaAttuale - item.quantita,
-              ordinati: (prodDoc.data().ordinati || 0) + item.quantita
+            transaction.update(op.prodRef, {
+              giacenza: op.giacenzaAttuale - op.item.quantita,
+              ordinati: (op.datiProd.ordinati || 0) + op.item.quantita
             });
 
             // Registra prenotazione
             const prenRef = doc(collection(db, "prenotazioni"));
             transaction.set(prenRef, {
-              nome: item.nome,
-              prodotto: item.prodotto,
-              prodottoId: item.prodottoId,
-              quantita: item.quantita,
-              nota: item.nota,
+              nome: op.item.nome,
+              prodotto: op.item.prodotto,
+              prodottoId: op.item.prodottoId,
+              quantita: op.item.quantita,
+              nota: op.item.nota,
               data: serverTimestamp()
             });
           }
