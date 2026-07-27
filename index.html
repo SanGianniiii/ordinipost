@@ -7,150 +7,303 @@
   <meta name="theme-color" content="#2e7d32">
   <title>Ordini Post - Prenotazioni</title>
   <style>
-/* --- STILI BASE E LAYOUT (Colori App Originale) --- */
-body {
-    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: linear-gradient(to right, #e8f5e9, #c8e6c9);
-    margin: 0;
-    padding: 1rem;
-    color: #2e7d32;
-    min-height: 100vh;
-}
+    /* STILI ORIGINALI APP */
+    body {
+      font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: linear-gradient(to right, #e8f5e9, #c8e6c9);
+      margin: 0;
+      padding: 1rem;
+      color: #2e7d32;
+      min-height: 100vh;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+    }
+    header img { width: 60px; height: 60px; object-fit: contain; }
+    h2 { margin: 0; font-size: 1.5rem; color: #2e7d32; }
 
-header {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    justify-content: center;
-    margin-bottom: 1.5rem;
-}
-header img {
-    width: 60px; height: 60px;
-    object-fit: contain;
-}
-h2 { margin: 0; font-size: 1.5rem; color: #2e7d32; }
+    select, input[type="number"], input[type="text"], button {
+      width: 100%;
+      padding: 0.8rem;
+      margin-top: 0.5rem;
+      font-size: 1rem;
+      border-radius: 8px;
+      border: 1px solid #a5d6a7;
+      box-sizing: border-box;
+    }
 
-select, input[type="number"], input[type="text"], button {
-    width: 100%;
-    padding: 0.8rem;
-    margin-top: 0.5rem;
-    font-size: 1rem;
-    border-radius: 8px;
-    border: 1px solid #a5d6a7;
-    box-sizing: border-box;
-}
+    label { font-weight: bold; color: #2e7d32; display: block; margin-top: 1rem; }
 
-label { font-weight: bold; color: #2e7d32; display: block; margin-top: 1rem; }
+    .table-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      margin-top: 1rem;
+      border-radius: 8px;
+      background-color: white;
+      box-shadow: 0 2px 8px rgba(0, 128, 0, 0.15);
+    }
 
-.table-wrapper {
-    width: 100%;
-    overflow-x: auto;
-    margin-top: 1rem;
-    border-radius: 8px;
-    background-color: white;
-    box-shadow: 0 2px 8px rgba(0, 128, 0, 0.15);
-}
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 
-table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
-}
+    th, td {
+      padding: 0.8rem 0.4rem;
+      text-align: center;
+      border-bottom: 1px solid #e0f2f1;
+      word-wrap: break-word;
+      font-size: 0.9rem;
+    }
 
-th, td {
-    padding: 0.8rem 0.4rem;
-    text-align: center;
-    border-bottom: 1px solid #e0f2f1;
-    word-wrap: break-word;
-    font-size: 0.9rem;
-}
+    th { background-color: #a5d6a7; color: white; font-weight: 600; }
 
-th { background-color: #a5d6a7; color: white; font-weight: 600; }
+    .col-prod { width: 30%; text-align: left; padding-left: 10px; color: #2e7d32; font-weight: bold; }
+    .col-disp { width: 15%; }
+    .col-qta { width: 20%; }
+    .col-nota { width: 35%; }
 
-.col-prod { width: 30%; text-align: left; padding-left: 10px; color: #2e7d32; }
-.col-disp { width: 15%; }
-.col-qta { width: 20%; }
-.col-nota { width: 35%; }
+    .modal {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.7); display: none; justify-content: center;
+      align-items: center; z-index: 30000;
+    }
 
-#modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 30000; }
-#modal-riepilogo, #modal-dettaglio-persone { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 20000; }
+    .modal-content-box {
+      background: white; padding: 20px; border-radius: 12px;
+      width: 90%; max-width: 500px; max-height: 85vh; overflow-y: auto;
+      box-shadow: 0 10px 25px rgba(0,128,0,0.2);
+    }
 
-.modal-content-box {
-    background: white; padding: 20px; border-radius: 12px;
-    width: 90%; max-width: 500px; max-height: 85vh; overflow-y: auto;
-    box-shadow: 0 10px 25px rgba(0,128,0,0.2);
-}
+    #status-message {
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -50%); padding: 20px 40px;
+      border-radius: 15px; color: white; font-weight: bold;
+      font-size: 1.2rem; text-align: center; z-index: 60000;
+      display: none; box-shadow: 0 10px 30px rgba(0,128,0,0.3);
+    }
 
-#loading-overlay {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: white;
-    z-index: 50000;
-    display: none;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-}
+    .status-success { background-color: #2e7d32; }
+    .status-error { background-color: #d32f2f; }
 
-#status-message {
-    position: fixed;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    padding: 20px 40px;
-    border-radius: 15px;
-    color: white;
-    font-weight: bold;
-    font-size: 1.2rem;
-    text-align: center;
-    z-index: 60000; 
-    display: none;
-    box-shadow: 0 10px 30px rgba(0,128,0,0.3);
-    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
+    .card-persona { border: 1px solid #c8e6c9; border-radius: 10px; padding: 10px; margin-bottom: 15px; background-color: #fafafa; }
+    .card-persona h4 { margin: 0 0 10px 0; color: #2e7d32; border-bottom: 2px solid #2e7d32; padding-bottom: 5px; }
 
-@keyframes popIn {
-    0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
-    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-}
+    button { background-color: #2e7d32; color: white; border: none; font-weight: bold; margin-top: 1rem; cursor: pointer; transition: background 0.3s; }
+    button:hover { background-color: #1b5e20; }
+    .btn-secondary { background-color: #6c757d; }
+    .btn-dark { background-color: #1b5e20; }
+    .admin-btn { background-color: transparent; border: 1px solid #2e7d32; color: #2e7d32; margin-top: 1.5rem; }
+  </style>
 
-.status-success { background-color: #2e7d32; border: 2px solid #1b5e20; }
-.status-error { background-color: #d32f2f; border: 2px solid #b71c1c; }
+  <!-- SDK FIREBASE v10 MODULARE -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { 
+      getFirestore, collection, onSnapshot, doc, runTransaction, getDocs, query, where, serverTimestamp, setDoc 
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 
-.card-persona { border: 1px solid #c8e6c9; border-radius: 10px; padding: 10px; margin-bottom: 15px; background-color: #fafafa; }
-.card-persona h4 { margin: 0 0 10px 0; color: #2e7d32; border-bottom: 2px solid #2e7d32; padding-bottom: 5px; }
+    // ⚙️ CONFIGURAZIONE FIREBASE
+    const firebaseConfig = {
+      apiKey: "AIzaSyAY8l_GGRWPWi5BFpirUMXd2JN0MVZZpYM",
+      authDomain: "ordinipost-fcc7f.firebaseapp.com",
+      projectId: "ordinipost-fcc7f",
+      storageBucket: "ordinipost-fcc7f.firebasestorage.app",
+      messagingSenderId: "363847145933",
+      appId: "1:363847145933:web:d1590848833eb147590c84",
+      measurementId: "G-V50YGPTVM4"
+    };
 
-.spinner {
-    display: inline-block; width: 30px; height: 30px;
-    border: 4px solid rgba(46, 125, 50, 0.2);
-    border-top: 4px solid #2e7d32;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    let messaging = null;
+    try { messaging = getMessaging(app); } catch(e) {}
 
-button { background-color: #2e7d32; color: white; border: none; font-weight: bold; margin-top: 1rem; cursor: pointer; transition: background 0.3s; }
-button:hover { background-color: #1b5e20; }
-.btn-secondary { background-color: #6c757d; }
-.btn-dark { background-color: #1b5e20; }
-</style>
+    let prodottiGlobal = [];
+    const PREZZI = { "pistacchio": 19, "nocciola": 19, "fondente": 19, "mandorla": 19, "caffe": 19, "pera ciocco": 17, "arancia candita": 17, "frutti di bosco": 17, "jelly limone arancia rossa": 19 };
+
+    window.getPrezzo = (nome) => {
+      const n = nome.toLowerCase();
+      for (const [k, v] of Object.entries(PREZZI)) { if (n.includes(k)) return v; }
+      return 0;
+    };
+
+    // 1. ASCOLTO TEMPO REALE PRODOTTI E GIACENZE
+    onSnapshot(collection(db, "prodotti"), (snapshot) => {
+      prodottiGlobal = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      renderizzaTabellaPrincipale();
+    });
+
+    function renderizzaTabellaPrincipale() {
+      let html = `<div class="table-wrapper"><table><thead><tr><th class="col-prod">Prodotto</th><th class="col-disp">Disp.</th><th class="col-qta">Qtà</th><th class="col-nota">Nota</th></tr></thead><tbody>`;
+      
+      prodottiGlobal.forEach((p) => {
+        const isEsaurito = p.giacenza <= 0;
+        html += `<tr style="${isEsaurito ? 'background-color: #f9f9f9; color: #999;' : ''}">
+                  <td class="col-prod">${p.tipo}</td>
+                  <td class="col-disp">${p.giacenza}</td>
+                  <td class="col-qta">
+                    ${!isEsaurito 
+                      ? `<input type="number" id="qta-${p.id}" min="0" max="${p.giacenza}" placeholder="0">` 
+                      : `<span style="color:#d32f2f; font-weight:bold; font-size:0.8rem;">SOLD OUT</span>`
+                    }
+                  </td>
+                  <td class="col-nota">
+                    <input type="text" id="nota-${p.id}" placeholder="${isEsaurito ? '' : 'Es: Mario'}" ${isEsaurito ? 'disabled style="background:#f2f2f2; border:none;"' : ''}>
+                  </td>
+                 </tr>`;
+      });
+      
+      html += `</tbody></table></div>`;
+      document.getElementById("lista-prodotti").innerHTML = html;
+    }
+
+    // 2. CONFERMA E SCRITTURA ORDINE TRAMITE TRANSAZIONE ATOMICA
+    window.eseguiOperazioneBackend = async function() {
+      if (!window.payloadTemporaneo || window.payloadTemporaneo.length === 0) return;
+      document.getElementById("modal").style.display = "none";
+      const statusBox = document.getElementById("status-message");
+
+      try {
+        await runTransaction(db, async (transaction) => {
+          for (const item of window.payloadTemporaneo) {
+            const prodRef = doc(db, "prodotti", item.prodottoId);
+            const prodDoc = await transaction.get(prodRef);
+
+            if (!prodDoc.exists()) throw new Error(`Prodotto ${item.prodotto} non trovato!`);
+            const giacenzaAttuale = prodDoc.data().giacenza;
+
+            if (giacenzaAttuale < item.quantita) {
+              throw new Error(`Disponibilità insufficiente per ${item.prodotto}! Rimasti: ${giacenzaAttuale}`);
+            }
+
+            // Aggiorna giacenza
+            transaction.update(prodRef, {
+              giacenza: giacenzaAttuale - item.quantita,
+              ordinati: (prodDoc.data().ordinati || 0) + item.quantita
+            });
+
+            // Registra prenotazione
+            const prenRef = doc(collection(db, "prenotazioni"));
+            transaction.set(prenRef, {
+              nome: item.nome,
+              prodotto: item.prodotto,
+              prodottoId: item.prodottoId,
+              quantita: item.quantita,
+              nota: item.nota,
+              data: serverTimestamp()
+            });
+          }
+        });
+
+        // Reset input form
+        document.querySelectorAll('input[type="number"], input[type="text"]').forEach(i => i.value = "");
+        
+        statusBox.innerText = "✅ ORDINE CONFERMATO";
+        statusBox.className = "status-success";
+        statusBox.style.display = "block";
+        setTimeout(() => statusBox.style.display = "none", 2000);
+
+      } catch (e) {
+        statusBox.innerText = "❌ ERRORE: " + e.message;
+        statusBox.className = "status-error";
+        statusBox.style.display = "block";
+        setTimeout(() => statusBox.style.display = "none", 3500);
+      }
+    };
+
+    // 3. MOSTRAMO IL RIEPILOGO DELLA FAMIGLIA
+    window.mostraRiepilogoPrenotazioni = async function() {
+      const fam = document.getElementById("nome").value;
+      if (!fam) return alert("Seleziona una famiglia!");
+
+      const q = query(collection(db, "prenotazioni"), where("nome", "==", fam));
+      const snapshot = await getDocs(q);
+
+      const riepilogoMap = {};
+      let totalePezzi = 0;
+      let totaleEuro = 0;
+
+      snapshot.forEach((doc) => {
+        const d = doc.data();
+        riepilogoMap[d.prodotto] = (riepilogoMap[d.prodotto] || 0) + d.quantita;
+      });
+
+      let html = `<div style="background:#e8f5e9; padding:10px; border-radius:8px; margin-bottom:15px; border: 1px solid #a5d6a7;"><strong>${fam}</strong></div>`;
+      html += `<div class="table-wrapper"><table style="width:100%; font-size:1.1rem;"><tr style="background:#2e7d32; color:white;"><th style="text-align:left; padding:12px;">Prodotto</th><th style="width:30%;">Qtà</th></tr>`;
+
+      for (const [prod, qta] of Object.entries(riepilogoMap)) {
+        if (qta > 0) {
+          totalePezzi += qta;
+          totaleEuro += (qta * window.getPrezzo(prod));
+          html += `<tr><td style="text-align:left; padding:12px;">${prod}</td><td style="font-weight:bold; font-size:1.3rem;">${qta}</td></tr>`;
+        }
+      }
+
+      html += `</table></div><h3 style="text-align:right; color:#2e7d32;">Totale: € ${totaleEuro}</h3>
+               <button class="btn-dark" onclick="mostraDettaglioPerPersone()">Dettaglio per Singola Persona</button>`;
+
+      document.getElementById("contenuto-riepilogo").innerHTML = html;
+      document.getElementById("modal-riepilogo").style.display = "flex";
+    };
+
+    // 4. DETTAGLIO PER PERSONA CON VARIAZIONE (+ / -)
+    window.mostraDettaglioPerPersone = async function() {
+      document.getElementById("modal-riepilogo").style.display = "none";
+      const fam = document.getElementById("nome").value;
+      const q = query(collection(db, "prenotazioni"), where("nome", "==", fam));
+      const snapshot = await getDocs(q);
+
+      const personeMap = {};
+      snapshot.forEach(doc => {
+        const d = doc.data();
+        const persona = d.nota.trim() || "Generale";
+        if (!personeMap[persona]) personeMap[persona] = {};
+        personeMap[persona][d.prodotto] = (personeMap[persona][d.prodotto] || 0) + d.quantita;
+      });
+
+      let html = "";
+      for (const [persona, prodotti] of Object.entries(personeMap)) {
+        let totPers = 0;
+        html += `<div class="card-persona"><h4>👤 ${persona}</h4><div class="table-wrapper"><table style="width:100%;"><tr style="font-size:0.8rem; background:#f0f0f0;"><th style="color:black; background:#eee; text-align:left;">Prodotto</th><th style="color:black; background:#eee; width:15%;">Att.</th><th style="color:green; background:#eee; width:20%;">+</th><th style="color:red; background:#eee; width:20%;">-</th></tr>`;
+        
+        for (const [prod, qta] of Object.entries(prodotti)) {
+          if (qta > 0) {
+            totPers += (qta * window.getPrezzo(prod));
+            const pObj = prodottiGlobal.find(x => x.tipo === prod);
+            const pId = pObj ? pObj.id : prod;
+            html += `<tr><td style="text-align:left;">${prod}</td><td><strong>${qta}</strong></td>
+                     <td><input type="number" class="in-add" data-pers="${persona}" data-prod="${prod}" data-id="${pId}" value="0" min="0"></td>
+                     <td><input type="number" class="in-sub" data-pers="${persona}" data-prod="${prod}" data-id="${pId}" value="0" min="0" max="${qta}"></td></tr>`;
+          }
+        }
+        html += `</table></div><div style="text-align:right; margin-top:10px; font-weight:bold; color:#2e7d32;">Parziale: € ${totPers}</div></div>`;
+      }
+
+      document.getElementById("contenuto-dettaglio").innerHTML = html || "Nessun dato trovato per questa famiglia.";
+      document.getElementById("modal-dettaglio-persone").style.display = "flex";
+    };
+
+    // 5. ATTIVAZIONE NOTIFICHE PUSH DISPOSITIVO
+    window.attivaNotifichePush = async function() {
+      if(!messaging) return alert("Le notifiche non sono supportate su questo browser.");
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          // Genera il token dispositivo
+          const token = await getToken(messaging);
+          await setDoc(doc(db, "admin_tokens", token), { token: token, data: serverTimestamp() });
+          alert("✅ Dispositivo registrato per le Notifiche Push!");
+        } else {
+          alert("Permesso per le notifiche negato.");
+        }
+      } catch (e) { alert("Errore durante l'attivazione notifiche: " + e.message); }
+    };
+  </script>
 </head>
 <body>
-
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/ordinipost/firebase-messaging-sw.js')
-        .then(() => console.log('✅ Service Worker registrato per PWA'))
-        .catch(err => console.error('❌ Errore SW:', err));
-    });
-  }
-</script>
-
-<div id="loading-overlay">
-    <div class="spinner" style="width: 50px; height: 50px;"></div>
-    <h2 style="margin-top: 20px;">Attendi ricarica riepilogo...</h2>
-    <p style="color: #666;">Stiamo sincronizzando i tuoi ordini</p>
-</div>
 
 <div id="status-message"></div>
 
@@ -161,7 +314,7 @@ button:hover { background-color: #1b5e20; }
 
 <div style="max-width: 600px; margin: auto;">
     <label for="nome">👤 Famiglia Padrini:</label>
-    <select id="nome">
+    <select id="nome" onchange="localStorage.setItem('famiglia', this.value)">
       <option value="">-- Seleziona --</option>
       <option>Carapezza</option><option>Caruso</option><option>Di Maria</option>
       <option>Marino</option><option>Massimino</option><option>Milanese</option>
@@ -172,33 +325,37 @@ button:hover { background-color: #1b5e20; }
 
     <div id="sezione-prodotti">
       <h3 style="color: #2e7d32; margin-top: 1.5rem;">📦 Disponibilità</h3>
-      <div id="lista-prodotti"></div>
+      <div id="lista-prodotti">Caricamento disponibilità in corso...</div>
     </div>
 
     <button onclick="confermaOrdine()">🚀 Invia Prenotazione</button>
     <button class="btn-dark" onclick="mostraRiepilogoPrenotazioni()">📊 Visualizza Riepilogo</button>
+    <button class="admin-btn" onclick="attivaNotifichePush()">🔔 Admin: Attiva Notifiche Push</button>
 </div>
 
-<div id="modal">
+<!-- MODALE CONFERMA -->
+<div id="modal" class="modal">
   <div class="modal-content-box">
-    <h3 id="titoloModal" style="color: #2e7d32; margin-top: 0;">Conferma Azione</h3>
+    <h3 id="titoloModal" style="color: #2e7d32; margin-top: 0;">Conferma Ordine</h3>
     <div id="riepilogoCorpo" style="background: #e8f5e9; padding: 10px; border-radius: 5px; font-family: monospace; white-space: pre-wrap; font-size: 0.9rem; border: 1px solid #a5d6a7;"></div>
     <div style="display: flex; gap: 10px; margin-top: 20px;">
         <button id="btnEsegui" onclick="eseguiOperazioneBackend()" style="margin:0;">Conferma</button>
-        <button onclick="chiudiModal()" class="btn-secondary" style="margin:0;">Annulla</button>
+        <button onclick="document.getElementById('modal').style.display='none'" class="btn-secondary" style="margin:0;">Annulla</button>
     </div>
   </div>
 </div>
 
-<div id="modal-riepilogo">
+<!-- MODALE RIEPILOGO -->
+<div id="modal-riepilogo" class="modal">
   <div class="modal-content-box" style="max-width: 600px;">
     <h3 style="margin-top: 0; color:#2e7d32;">Riepilogo Famiglia</h3>
     <div id="contenuto-riepilogo"></div>
-    <button class="btn-secondary" onclick="document.getElementById('modal-riepilogo').style.display='none'">Chiudi</button>
+    <button class="btn-secondary" onclick="document.getElementById('modal-riepilogo').style.display='none'" style="margin-top:15px;">Chiudi</button>
   </div>
 </div>
 
-<div id="modal-dettaglio-persone">
+<!-- MODALE DETTAGLIO PERSONE -->
+<div id="modal-dettaglio-persone" class="modal">
   <div class="modal-content-box" style="max-width: 650px; width: 95%;">
     <h3 style="margin-top: 0; color:#2e7d32;">Dettaglio per Persona</h3>
     <div id="contenuto-dettaglio"></div>
@@ -210,94 +367,41 @@ button:hover { background-color: #1b5e20; }
 </div>
 
 <script>
-  // ECCO L'URL GAS UFFICIALE:
-  const scriptUrl = "https://script.google.com/macros/s/AKfycbzeUhhMfbrOoNOC0poIgowaD-LII689HLXpoHrv9GwsI5lx5TqEtva47ZW3DHJI1qjMkA/exec";
-  let prodottiGlobal = [];
-  let payloadTemporaneo = [];
-
-  const PREZZI = { "pistacchio": 19, "nocciola": 19, "fondente": 19, "mandorla": 19, "caffe": 19, "pera ciocco": 17, "arancia candita": 17, "frutti di bosco": 17, "jelly limone arancia rossa": 19 };
-
-  function getPrezzo(nome) {
-      const n = nome.toLowerCase();
-      for (const [k, v] of Object.entries(PREZZI)) { if (n.includes(k)) return v; }
-      return 0;
-  }
-
-  async function caricaDati() {
-    try {
-      const res = await fetch(scriptUrl + "?action=read");
-      prodottiGlobal = await res.json();
-      renderizzaTabellaPrincipale();
-      const fav = localStorage.getItem("famiglia");
-      if (fav) document.getElementById("nome").value = fav;
-    } catch (e) { console.error("Errore caricamento: " + e.message); }
-  }
-
-  function renderizzaTabellaPrincipale() {
-    let html = `<div class="table-wrapper"><table><thead><tr><th class="col-prod" style="color:white;">Prodotto</th><th class="col-disp">Disp.</th><th class="col-qta">Quantità</th><th class="col-nota">Nota</th></tr></thead><tbody>`;
-    
-    prodottiGlobal.forEach((p, i) => {
-      const isEsaurito = p.giacenza <= 0;
-      const stileRiga = isEsaurito ? 'background-color: #f9f9f9; color: #999;' : '';
-
-      html += `<tr style="${stileRiga}">
-                <td class="col-prod" style="font-weight:600;">${p.tipo}</td>
-                <td class="col-disp">${p.giacenza}</td>
-                <td class="col-qta">
-                  ${!isEsaurito 
-                    ? `<input type="number" id="qta-${i}" min="0" max="${p.giacenza}" placeholder="0">` 
-                    : `<span style="color:#d32f2f; font-weight:bold; font-size:0.8rem;">SOLD OUT</span>`
-                  }
-                </td>
-                <td class="col-nota">
-                  <input type="text" id="nota-${i}" placeholder="${isEsaurito ? '' : 'Es: Mario'}" ${isEsaurito ? 'disabled style="background:#f2f2f2; border:none;"' : ''}>
-                </td>
-               </tr>`;
-    });
-    
-    html += `</tbody></table></div>`;
-    document.getElementById("lista-prodotti").innerHTML = html;
-  }
+  // Ripristina l'ultima famiglia selezionata
+  const fav = localStorage.getItem("famiglia");
+  if (fav) document.getElementById("nome").value = fav;
 
   function confermaOrdine() {
     const nomeFamiglia = document.getElementById("nome").value;
     if (!nomeFamiglia) return alert("Seleziona la famiglia!");
-    localStorage.setItem("famiglia", nomeFamiglia);
-    
+
     const ordine = [];
-    let erroreGiacenza = false;
+    let erroreInput = false;
 
-    prodottiGlobal.forEach((p, i) => {
-      if (erroreGiacenza) return;
+    document.querySelectorAll("[id^='qta-']").forEach(input => {
+      if (erroreInput) return;
+      const id = input.id.replace("qta-", "");
+      const q = parseInt(input.value) || 0;
+      const n = document.getElementById(`nota-${id}`)?.value.trim() || "";
+      const pNome = input.parentElement.parentElement.querySelector(".col-prod").innerText;
 
-      const qInput = document.getElementById(`qta-${i}`);
-      if (!qInput) return;
-
-      const q = parseInt(qInput.value) || 0;
-      const n = document.getElementById(`nota-${i}`)?.value.trim() || "";
-      
-      if (q > 0) { 
-        if (q > p.giacenza) {
-            alert(`⛔ ATTENZIONE: Quantità per "${p.tipo}" non disponibile.\nHai inserito ${q}, ma sono disponibili solo ${p.giacenza} pezzi.`);
-            erroreGiacenza = true;
-            return;
+      if (q > 0) {
+        if (!n) {
+          alert(`Inserisci una nota (Chi?) per ${pNome}`);
+          erroreInput = true;
+          return;
         }
-        if (!n) { 
-            alert(`Inserisci una nota (Chi?) per ${p.tipo}`); 
-            erroreGiacenza = true;
-            return; 
-        }
-        ordine.push({ nome: nomeFamiglia, prodotto: p.tipo, quantita: q, nota: n }); 
+        ordine.push({ nome: nomeFamiglia, prodottoId: id, prodotto: pNome, quantita: q, nota: n });
       }
     });
 
-    if (erroreGiacenza) return;
+    if (erroreInput) return;
     if (ordine.length === 0) return alert("Nessun prodotto selezionato.");
-    
-    payloadTemporaneo = ordine;
+
+    window.payloadTemporaneo = ordine;
     let text = `Nuova Prenotazione:\n`;
     ordine.forEach(o => text += `• ${o.prodotto}: ${o.quantita} (${o.nota})\n`);
-    
+
     document.getElementById("titoloModal").innerText = "Conferma Ordine";
     document.getElementById("riepilogoCorpo").innerText = text;
     document.getElementById("modal").style.display = "flex";
@@ -307,144 +411,35 @@ button:hover { background-color: #1b5e20; }
     const fam = document.getElementById("nome").value;
     const modifiche = [];
     let riepilogoTesto = `⚠️ MODIFICA RICHIESTA\n\n`;
-    
-    const variazioniTotali = {};
 
     document.querySelectorAll(".card-persona").forEach(card => {
         const inAdds = card.querySelectorAll(".in-add");
         const inSubs = card.querySelectorAll(".in-sub");
-        
+
         inAdds.forEach((el, i) => {
             const add = parseInt(el.value) || 0;
             const sub = parseInt(inSubs[i].value) || 0;
             const netto = add - sub;
-            
+
             if (netto !== 0) {
                 const prod = el.dataset.prod;
+                const pId = el.dataset.id;
                 const pers = el.dataset.pers;
-                
-                variazioniTotali[prod] = (variazioniTotali[prod] || 0) + netto;
-                
-                modifiche.push({ 
-                    nome: fam, 
-                    prodotto: prod, 
-                    quantita: netto, 
-                    nota: pers 
-                });
-                
-                const azione = netto > 0 ? 'Aggiunti' : 'Sottratti';
-                riepilogoTesto += `• ${pers} | ${prod}: ${netto > 0 ? '+' : ''}${netto} (${azione})\n`;
+
+                modifiche.push({ nome: fam, prodottoId: pId, prodotto: prod, quantita: netto, nota: pers });
+                riepilogoTesto += `• ${pers} | ${prod}: ${netto > 0 ? '+' : ''}${netto}\n`;
             }
         });
     });
 
     if (modifiche.length === 0) return alert("Nessuna modifica inserita.");
 
-    for (const [prod, qtaNettaRichiesta] of Object.entries(variazioniTotali)) {
-        if (qtaNettaRichiesta > 0) {
-            const p = prodottiGlobal.find(x => x.tipo === prod);
-            if (p && qtaNettaRichiesta > p.giacenza) {
-                alert(`⛔ ATTENZIONE: Overbooking per "${prod}".\nHai richiesto un totale di +${qtaNettaRichiesta} pezzi extra, ma in magazzino ne sono disponibili solo ${p.giacenza}.`);
-                return;
-            }
-        }
-    }
-
-    payloadTemporaneo = modifiche;
+    document.getElementById("modal-dettaglio-persone").style.display = "none";
+    window.payloadTemporaneo = modifiche;
     document.getElementById("titoloModal").innerText = "Conferma Modifiche";
     document.getElementById("riepilogoCorpo").innerText = riepilogoTesto;
     document.getElementById("modal").style.display = "flex";
   }
-
-  async function eseguiOperazioneBackend() {
-    const overlay = document.getElementById("loading-overlay");
-    const statusBox = document.getElementById("status-message");
-    
-    overlay.style.display = "flex";
-    chiudiModal();
-    document.getElementById("modal-dettaglio-persone").style.display = "none";
-
-    try {
-        const res = await fetch(scriptUrl, {
-            method: "POST",
-            body: JSON.stringify({ action: "prenota", ordine: payloadTemporaneo })
-        });
-        await res.json();
-
-        await caricaDati();
-        await mostraRiepilogoPrenotazioni(true); 
-
-        overlay.style.display = "none";
-
-        statusBox.innerText = "✅ ORDINE CONFERMATO";
-        statusBox.className = "status-success";
-        statusBox.style.display = "block";
-
-        setTimeout(() => {
-            statusBox.style.display = "none";
-        }, 2000);
-
-    } catch (e) {
-        overlay.style.display = "none";
-        statusBox.innerText = "❌ ORDINE NON CONFERMATO!!!";
-        statusBox.className = "status-error";
-        statusBox.style.display = "block";
-        
-        console.error("Errore:", e);
-
-        setTimeout(() => {
-            statusBox.style.display = "none";
-        }, 3500);
-    }
-  }
-
-  async function mostraRiepilogoPrenotazioni(silenzioso = false) {
-    const fam = document.getElementById("nome").value;
-    const cont = document.getElementById("contenuto-riepilogo");
-    if (!silenzioso) {
-        cont.innerHTML = `<div class="spinner"></div> Caricamento...`;
-        document.getElementById("modal-riepilogo").style.display = "flex";
-    }
-
-    try {
-      const res = await fetch(`${scriptUrl}?action=riepilogo&nominativo=${encodeURIComponent(fam)}`);
-      const data = await res.json();
-      let html = `<div style="background:#e8f5e9; padding:10px; border-radius:8px; margin-bottom:15px; border: 1px solid #a5d6a7;"><strong>${fam}</strong> - Totale: ${data.totaleProdotti}</div>`;
-      html += `<div class="table-wrapper"><table style="width:100%; font-size:1.1rem;"><tr style="background:#2e7d32; color:white;"><th style="text-align:left; padding:12px; background:#2e7d32;">Prodotto</th><th style="width:30%; background:#2e7d32;">Qtà</th></tr>`;
-      data.riepilogoArray.filter(x => x.valore > 0).forEach(item => {
-        html += `<tr><td style="text-align:left; padding:12px;">${item.prodotto}</td><td style="font-weight:bold; font-size:1.3rem;">${item.valore}</td></tr>`;
-      });
-      html += `</table></div><h3 style="text-align:right; color:#2e7d32;">Totale: € ${data.totaleDaPagare}</h3><button class="btn-dark" onclick="mostraDettaglioPerPersone()">Dettaglio per Singola Persona</button>`;
-      cont.innerHTML = html;
-      if (silenzioso) document.getElementById("modal-riepilogo").style.display = "flex";
-    } catch (e) { cont.innerHTML = "Errore: " + e.message; }
-  }
-
-  async function mostraDettaglioPerPersone() {
-    document.getElementById("modal-riepilogo").style.display = "none";
-    const fam = document.getElementById("nome").value;
-    const cont = document.getElementById("contenuto-dettaglio");
-    cont.innerHTML = `<div class="spinner"></div> Caricamento dettagli...`;
-    document.getElementById("modal-dettaglio-persone").style.display = "flex";
-    try {
-      const res = await fetch(`${scriptUrl}?action=dettaglio&nominativo=${encodeURIComponent(fam)}`);
-      const persone = await res.json();
-      let html = "";
-      persone.forEach((pers) => {
-        let totPers = 0;
-        html += `<div class="card-persona"><h4>👤 ${pers.nominativo}</h4><div class="table-wrapper"><table style="width:100%;"><tr style="font-size:0.8rem; background:#f0f0f0;"><th style="color:black; background:#eee; text-align:left;">Prodotto</th><th style="color:black; background:#eee; width:15%;">Att.</th><th style="color:green; background:#eee; width:20%;">+</th><th style="color:red; background:#eee; width:20%;">-</th></tr>`;
-        for (const [prod, qta] of Object.entries(pers.prodotti)) {
-          totPers += (qta * getPrezzo(prod));
-          html += `<tr><td style="text-align:left;">${prod}</td><td><strong>${qta}</strong></td><td><input type="number" class="in-add" data-pers="${pers.nominativo}" data-prod="${prod}" value="0" min="0"></td><td><input type="number" class="in-sub" data-pers="${pers.nominativo}" data-prod="${prod}" value="0" min="0" max="${qta}"></td></tr>`;
-        }
-        html += `</table></div><div style="text-align:right; margin-top:10px; font-weight:bold; color:#2e7d32;">Parziale: € ${totPers}</div></div>`;
-      });
-      cont.innerHTML = html || "Nessun dato.";
-    } catch (e) { cont.innerHTML = "Errore: " + e.message; }
-  }
-
-  function chiudiModal() { document.getElementById("modal").style.display = "none"; }
-  window.onload = caricaDati;
 </script>
 </body>
 </html>
