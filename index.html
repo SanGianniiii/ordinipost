@@ -286,14 +286,17 @@
       document.getElementById("modal-dettaglio-persone").style.display = "flex";
     };
 
-    // 5. ATTIVAZIONE NOTIFICHE PUSH DISPOSITIVO
+    // 5. ATTIVAZIONE NOTIFICHE PUSH DISPOSITIVO CON LA TUA VAPID KEY
     window.attivaNotifichePush = async function() {
       if(!messaging) return alert("Le notifiche non sono supportate su questo browser.");
       try {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
-          // Genera il token dispositivo
-          const token = await getToken(messaging);
+          // Genera il token dispositivo inserendo la tua VAPID KEY
+          const token = await getToken(messaging, { 
+            vapidKey: "BJnvFe-amLgnp89cNI2k1XAmMw5cMvy9yzEMhIAGb9pwHlRCEUKQWmkKyNnBeo3TtDVgToa6Le2daJT4RzgX9u0" 
+          });
+          
           await setDoc(doc(db, "admin_tokens", token), { token: token, data: serverTimestamp() });
           alert("✅ Dispositivo registrato per le Notifiche Push!");
         } else {
