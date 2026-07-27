@@ -393,6 +393,49 @@
   const fav = localStorage.getItem("famiglia");
   if (fav) document.getElementById("nome").value = fav;
 
+  // Funzione intelligente per leggere quantità e nomi multipli dalla nota (es. "2 luca 18 mario")
+  function analizzaNotaEQuantita(qtaTotaleDefault, notaTesto) {
+    const testo = notaTesto.trim().replace(/,/g, ' ');
+    const tokens = testo.split(/\s+/);
+    
+    const risultati = [];
+    let correnteQta = null;
+    let correnteNome = [];
+
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+      if (!isNaN(token) && token !== "") {
+        if (correnteQta !== null) {
+          risultati.push({
+            quantita: parseInt(correnteQta),
+            nota: correnteNome.join(" ").trim()
+          });
+          correnteNome = [];
+        }
+        correnteQta = token;
+      } else {
+        correnteNome.push(token);
+      }
+    }
+
+    if (correnteQta !== null) {
+      risultati.push({
+        quantita: parseInt(correnteQta),
+        nota: correnteNome.join(" ").trim()
+      });
+    }
+
+    // Se non ci sono numeri nella nota (es. hai scritto solo "mario"), usa la quantità della casella principale
+    if (risultati.length === 0) {
+      return [{
+        quantita: qtaTotaleDefault,
+        nota: notaTesto.trim()
+      }];
+    }
+
+    return risultati;
+  }
+
   function confermaOrdine() {
     const nomeFamiglia = document.getElementById("nome").value;
     if (!nomeFamiglia) return alert("Seleziona la famiglia!");
@@ -403,17 +446,36 @@
     document.querySelectorAll("[id^='qta-']").forEach(input => {
       if (erroreInput) return;
       const id = input.id.replace("qta-", "");
-      const q = parseInt(input.value) || 0;
-      const n = document.getElementById(`nota-${id}`)?.value.trim() || "";
+      const qDefault = parseInt(input.value) || 0;
+      const nTesto = document.getElementById(`nota-${id}`)?.value.trim() || "";
       const pNome = input.parentElement.parentElement.querySelector(".col-prod").innerText;
 
-      if (q > 0) {
-        if (!n) {
+      if (qDefault > 0 || nTesto !== "") {
+        if (!nTesto) {
           alert(`Inserisci una nota (Chi?) per ${pNome}`);
           erroreInput = true;
           return;
         }
-        ordine.push({ nome: nomeFamiglia, prodottoId: id, prodotto: pNome, quantita: q, nota: n });
+
+        // Estrae automaticamente le singole quantità e i nomi dalla nota
+        const sottordini = analizzaNotaEQuantita(qDefault, nTesto);
+
+        for (const sub of sottordini) {
+          if (sub.quantita > 0) {
+            if (!sub.nota) {
+              alert(`Specifica il nome per la quantità ${sub.quantita} in ${pNome}`);
+              erroreInput = true;
+              return;
+            }
+            ordine.push({ 
+              nome: nomeFamiglia, 
+              prodottoId: id, 
+              prodotto: pNome, 
+              quantita: sub.quantita, 
+              nota: sub.nota 
+            });
+          }
+        }
       }
     });
 
