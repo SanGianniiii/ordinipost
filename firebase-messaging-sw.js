@@ -1,42 +1,23 @@
-const CACHE_NAME = 'ordinipost-v3'; 
-const urlsToCache = [
-  '/ordinipost/',
-  '/ordinipost/index.html',
-  '/ordinipost/logo.png',
-  '/ordinipost/manifest.json'
-];
+importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
-self.addEventListener('install', function(e) {
-  self.skipWaiting(); 
-  e.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
-  );
-});
+const firebaseConfig = {
+  apiKey: "AIzaSyAY8l_GGRWPWi5BFpirUMXd2JN0MVZZpYM",
+  authDomain: "ordinipost-fcc7f.firebaseapp.com",
+  projectId: "ordinipost-fcc7f",
+  storageBucket: "ordinipost-fcc7f.firebasestorage.app",
+  messagingSenderId: "363847145933",
+  appId: "1:363847145933:web:d1590848833eb147590c84"
+};
 
-self.addEventListener('activate', function(e) {
-  e.waitUntil(
-    caches.keys().then(names => Promise.all(
-      names.map(n => { if (n !== CACHE_NAME) return caches.delete(n); })
-    ))
-  );
-  return self.clients.claim(); 
-});
+firebase.initializeApp(firebaseConfig);
+const messaging = firebase.messaging();
 
-self.addEventListener('fetch', function(e) {
-  if (e.request.mode === 'navigate' || e.request.url.includes('script.google.com')) {
-    e.respondWith(
-      fetch(e.request).catch(() => caches.match(e.request))
-    );
-  } else {
-    e.respondWith(
-      caches.match(e.request).then(cachedResponse => {
-        const fetchPromise = fetch(e.request).then(networkResponse => {
-          caches.open(CACHE_NAME).then(cache => cache.put(e.request, networkResponse.clone()));
-          return networkResponse;
-        }).catch(() => {}); 
-        
-        return cachedResponse || fetchPromise;
-      })
-    );
-  }
+messaging.onBackgroundMessage(function(payload) {
+  const notificationTitle = payload.notification.title;
+  const notificationOptions = {
+    body: payload.notification.body,
+    icon: '/logo.png'
+  };
+  self.registration.showNotification(notificationTitle, notificationOptions);
 });
