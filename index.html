@@ -103,7 +103,7 @@
     import { 
       getFirestore, collection, onSnapshot, doc, runTransaction, getDocs, query, where, serverTimestamp, setDoc 
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-    import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
+    import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 
     // ⚙️ CONFIGURAZIONE FIREBASE
     const firebaseConfig = {
@@ -119,9 +119,26 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     let messaging = null;
-    try { messaging = getMessaging(app); } catch(e) {}
+    try {
+      messaging = getMessaging(app);
+      // Quando l'app è aperta e attiva sullo schermo, il service worker in background
+      // NON riceve il messaggio: serve questo gestore per mostrarlo comunque.
+      onMessage(messaging, (payload) => {
+        mostraStatus(`🔔 ${payload.notification?.title || "Nuova notifica"}: ${payload.notification?.body || ""}`);
+      });
+    } catch(e) {}
 
     let prodottiGlobal = [];
+
+    // Mostra un messaggio stilizzato (sostituisce gli alert() nativi del browser)
+    window.mostraStatus = function(messaggio, isError = false) {
+      const statusBox = document.getElementById("status-message");
+      statusBox.innerText = (isError ? "❌ " : "✅ ") + messaggio;
+      statusBox.className = isError ? "status-error" : "status-success";
+      statusBox.style.display = "block";
+      setTimeout(() => statusBox.style.display = "none", isError ? 3500 : 2500);
+    };
+
     const PREZZI = { "pistacchio": 19, "nocciola": 19, "fondente": 19, "mandorla": 19, "caffe": 19, "pera ciocco": 17, "arancia candita": 17, "frutti di bosco": 17, "jelly limone arancia rossa": 19 };
 
     window.getPrezzo = (nome) => {
@@ -164,7 +181,6 @@
     window.eseguiOperazioneBackend = async function() {
       if (!window.payloadTemporaneo || window.payloadTemporaneo.length === 0) return;
       document.getElementById("modal").style.display = "none";
-      const statusBox = document.getElementById("status-message");
 
       try {
         await runTransaction(db, async (transaction) => {
@@ -216,23 +232,17 @@
         // Reset input form
         document.querySelectorAll('input[type="number"], input[type="text"]').forEach(i => i.value = "");
         
-        statusBox.innerText = "✅ ORDINE CONFERMATO";
-        statusBox.className = "status-success";
-        statusBox.style.display = "block";
-        setTimeout(() => statusBox.style.display = "none", 2000);
+        mostraStatus("ORDINE CONFERMATO");
 
       } catch (e) {
-        statusBox.innerText = "❌ ERRORE: " + e.message;
-        statusBox.className = "status-error";
-        statusBox.style.display = "block";
-        setTimeout(() => statusBox.style.display = "none", 3500);
+        mostraStatus("ERRORE: " + e.message, true);
       }
     };
 
     // 3. MOSTRAMO IL RIEPILOGO DELLA FAMIGLIA
     window.mostraRiepilogoPrenotazioni = async function() {
       const fam = document.getElementById("nome").value;
-      if (!fam) return alert("Seleziona una famiglia!");
+      if (!fam) return mostraStatus("Seleziona una famiglia!", true);
 
       const q = query(collection(db, "prenotazioni"), where("nome", "==", fam));
       const snapshot = await getDocs(q);
@@ -281,18 +291,19 @@
 
       let html = "";
       for (const [persona, prodotti] of Object.entries(personeMap)) {
+        const prodottiConGiacenza = Object.entries(prodotti).filter(([_, qta]) => qta > 0);
+        if (prodottiConGiacenza.length === 0) continue; // persona senza più prodotti: non la mostro
+
         let totPers = 0;
         html += `<div class="card-persona"><h4>👤 ${persona}</h4><div class="table-wrapper"><table style="width:100%;"><tr style="font-size:0.8rem; background:#f0f0f0;"><th style="color:black; background:#eee; text-align:left;">Prodotto</th><th style="color:black; background:#eee; width:15%;">Att.</th><th style="color:green; background:#eee; width:20%;">+</th><th style="color:red; background:#eee; width:20%;">-</th></tr>`;
         
-        for (const [prod, qta] of Object.entries(prodotti)) {
-          if (qta > 0) {
-            totPers += (qta * window.getPrezzo(prod));
-            const pObj = prodottiGlobal.find(x => x.tipo === prod);
-            const pId = pObj ? pObj.id : prod;
-            html += `<tr><td style="text-align:left;">${prod}</td><td><strong>${qta}</strong></td>
-                     <td><input type="number" class="in-add" data-pers="${persona}" data-prod="${prod}" data-id="${pId}" value="0" min="0"></td>
-                     <td><input type="number" class="in-sub" data-pers="${persona}" data-prod="${prod}" data-id="${pId}" value="0" min="0" max="${qta}"></td></tr>`;
-          }
+        for (const [prod, qta] of prodottiConGiacenza) {
+          totPers += (qta * window.getPrezzo(prod));
+          const pObj = prodottiGlobal.find(x => x.tipo === prod);
+          const pId = pObj ? pObj.id : prod;
+          html += `<tr><td style="text-align:left;">${prod}</td><td><strong>${qta}</strong></td>
+                   <td><input type="number" class="in-add" data-pers="${persona}" data-prod="${prod}" data-id="${pId}" value="0" min="0"></td>
+                   <td><input type="number" class="in-sub" data-pers="${persona}" data-prod="${prod}" data-id="${pId}" data-current="${qta}" value="0" min="0" max="${qta}"></td></tr>`;
         }
         html += `</table></div><div style="text-align:right; margin-top:10px; font-weight:bold; color:#2e7d32;">Parziale: € ${totPers}</div></div>`;
       }
@@ -303,7 +314,7 @@
 
     // 5. ATTIVAZIONE NOTIFICHE PUSH DISPOSITIVO CON PERCORSO FIXATO
     window.attivaNotifichePush = async function() {
-      if(!messaging) return alert("Le notifiche non sono supportate su questo browser.");
+      if(!messaging) return mostraStatus("Le notifiche non sono supportate su questo browser.", true);
       try {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
@@ -317,11 +328,26 @@
           });
           
           await setDoc(doc(db, "admin_tokens", token), { token: token, data: serverTimestamp() });
-          alert("✅ Dispositivo registrato per le Notifiche Push!");
+          mostraStatus("Dispositivo registrato per le Notifiche Push!");
         } else {
-          alert("Permesso per le notifiche negato.");
+          mostraStatus("Permesso per le notifiche negato.", true);
         }
-      } catch (e) { alert("Errore durante l'attivazione notifiche: " + e.message); }
+      } catch (e) { mostraStatus("Errore durante l'attivazione notifiche: " + e.message, true); }
+
+      // In ogni caso (concesso o negato) il permesso ora è stato deciso: non richiederlo più
+      aggiornaVisibilitaBottoneNotifiche();
+    };
+
+    // Nasconde il bottone se il permesso è già stato concesso o negato in precedenza,
+    // così non viene richiesto ad ogni apertura dell'app
+    window.aggiornaVisibilitaBottoneNotifiche = function() {
+      const btn = document.getElementById("btn-notifiche");
+      if (!btn) return;
+      if (!("Notification" in window) || Notification.permission === "granted" || Notification.permission === "denied") {
+        btn.style.display = "none";
+      } else {
+        btn.style.display = "block";
+      }
     };
   </script>
 </head>
@@ -352,7 +378,7 @@
 
     <button onclick="confermaOrdine()">🚀 Invia Prenotazione</button>
     <button class="btn-dark" onclick="mostraRiepilogoPrenotazioni()">📊 Visualizza Riepilogo</button>
-    <button class="admin-btn" onclick="attivaNotifichePush()">🔔 Admin: Attiva Notifiche Push</button>
+    <button id="btn-notifiche" class="admin-btn" onclick="attivaNotifichePush()">🔔 Admin: Attiva Notifiche Push</button>
 </div>
 
 <!-- MODALE CONFERMA -->
@@ -392,6 +418,9 @@
   // Ripristina l'ultima famiglia selezionata
   const fav = localStorage.getItem("famiglia");
   if (fav) document.getElementById("nome").value = fav;
+
+  // Mostra il bottone notifiche solo se il permesso non è ancora stato deciso
+  aggiornaVisibilitaBottoneNotifiche();
 
   // Funzione intelligente per leggere quantità e nomi multipli dalla nota (es. "2 luca 18 mario")
   function analizzaNotaEQuantita(qtaTotaleDefault, notaTesto) {
@@ -438,7 +467,7 @@
 
   function confermaOrdine() {
     const nomeFamiglia = document.getElementById("nome").value;
-    if (!nomeFamiglia) return alert("Seleziona la famiglia!");
+    if (!nomeFamiglia) return mostraStatus("Seleziona la famiglia!", true);
 
     const ordine = [];
     let erroreInput = false;
@@ -452,7 +481,7 @@
 
       if (qDefault > 0 || nTesto !== "") {
         if (!nTesto) {
-          alert(`Inserisci una nota (Chi?) per ${pNome}`);
+          mostraStatus(`Inserisci una nota (Chi?) per ${pNome}`, true);
           erroreInput = true;
           return;
         }
@@ -463,7 +492,7 @@
         for (const sub of sottordini) {
           if (sub.quantita > 0) {
             if (!sub.nota) {
-              alert(`Specifica il nome per la quantità ${sub.quantita} in ${pNome}`);
+              mostraStatus(`Specifica il nome per la quantità ${sub.quantita} in ${pNome}`, true);
               erroreInput = true;
               return;
             }
@@ -480,7 +509,7 @@
     });
 
     if (erroreInput) return;
-    if (ordine.length === 0) return alert("Nessun prodotto selezionato.");
+    if (ordine.length === 0) return mostraStatus("Nessun prodotto selezionato.", true);
 
     window.payloadTemporaneo = ordine;
     let text = `Nuova Prenotazione:\n`;
@@ -495,28 +524,40 @@
     const fam = document.getElementById("nome").value;
     const modifiche = [];
     let riepilogoTesto = `⚠️ MODIFICA RICHIESTA\n\n`;
+    let erroreValidazione = false;
 
     document.querySelectorAll(".card-persona").forEach(card => {
+        if (erroreValidazione) return;
         const inAdds = card.querySelectorAll(".in-add");
         const inSubs = card.querySelectorAll(".in-sub");
 
         inAdds.forEach((el, i) => {
+            if (erroreValidazione) return;
             const add = parseInt(el.value) || 0;
             const sub = parseInt(inSubs[i].value) || 0;
+            const disponibile = parseInt(inSubs[i].dataset.current) || 0;
+            const prod = el.dataset.prod;
+            const pers = el.dataset.pers;
+
+            // Non si può togliere più di quanto la persona possieda realmente
+            if (sub > disponibile) {
+                mostraStatus(`Non puoi togliere ${sub} ${prod} a ${pers}: ne ha solo ${disponibile}.`, true);
+                erroreValidazione = true;
+                return;
+            }
+
             const netto = add - sub;
 
             if (netto !== 0) {
-                const prod = el.dataset.prod;
                 const pId = el.dataset.id;
-                const pers = el.dataset.pers;
-
                 modifiche.push({ nome: fam, prodottoId: pId, prodotto: prod, quantita: netto, nota: pers });
                 riepilogoTesto += `• ${pers} | ${prod}: ${netto > 0 ? '+' : ''}${netto}\n`;
             }
         });
     });
 
-    if (modifiche.length === 0) return alert("Nessuna modifica inserita.");
+    if (erroreValidazione) return;
+    if (modifiche.length === 0) return mostraStatus("Nessuna modifica inserita.", true);
 
     document.getElementById("modal-dettaglio-persone").style.display = "none";
     window.payloadTemporaneo = modifiche;
