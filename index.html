@@ -118,6 +118,27 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+
+    // ⚙️ CONFIGURAZIONE FUNZIONE NETLIFY PER LE NOTIFICHE
+    // Dopo il deploy, sostituisci con l'URL reale del tuo sito Netlify.
+    // Il NOTIFY_SECRET deve essere IDENTICO a quello impostato come variabile
+    // d'ambiente NOTIFY_SECRET su Netlify.
+    const NOTIFY_URL = "/.netlify/functions/notify";
+    const NOTIFY_SECRET = "CAMBIA-QUESTO-SECRET";
+
+    window.inviaNotificaPush = async function(items) {
+      try {
+        const corpo = items.map(o => `${o.nome}: ${o.quantita} x ${o.prodotto} (${o.nota})`).join(' | ');
+        await fetch(NOTIFY_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ secret: NOTIFY_SECRET, title: 'Nuova Prenotazione', body: corpo })
+        });
+      } catch (e) {
+        console.warn('Notifica push non inviata:', e);
+      }
+    };
+
     let messaging = null;
     try {
       messaging = getMessaging(app);
@@ -233,6 +254,7 @@
         document.querySelectorAll('input[type="number"], input[type="text"]').forEach(i => i.value = "");
         
         mostraStatus("ORDINE CONFERMATO");
+        inviaNotificaPush(window.payloadTemporaneo);
 
       } catch (e) {
         mostraStatus("ERRORE: " + e.message, true);
