@@ -219,6 +219,7 @@
     // ⚙️ SETUP SERVICE WORKER E NOTIFICHE AL CARICAMENTO
     let messaging = null;
     let serviceWorkerReady = false;
+    let swRegistration = null;
 
     async function setupServiceWorker() {
       try {
@@ -227,8 +228,10 @@
           return;
         }
         
-        const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: '/' });
-        console.log('Service Worker registrato:', registration);
+        await navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: '/' });
+        // Aspetta che il Service Worker sia davvero ATTIVO, non solo registrato
+        swRegistration = await navigator.serviceWorker.ready;
+        console.log('Service Worker attivo:', swRegistration);
         serviceWorkerReady = true;
         
         // Ora configura la messaging
@@ -336,11 +339,18 @@
 
     // Funzione per inviare notifiche via Firebase Cloud Messaging
     window.inviaPushNotifica = async function(titolo, corpo) {
-      if (!messaging) return;
       try {
-        // Nota: Questo invia una notifica locale se l'app è aperta
-        // Per inviare notifiche server-side, hai bisogno di una Cloud Function
-        console.log(`📢 Notifica: ${titolo} - ${corpo}`);
+        const risposta = await fetch('/.netlify/functions/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            secret: 'k9Xz2mQ7pL4wR8vT1nC6bY3',
+            title: titolo,
+            body: corpo
+          })
+        });
+        const dati = await risposta.json();
+        console.log(`📢 Notifica inviata: ${titolo} - ${corpo}`, dati);
       } catch(e) {
         console.error('Errore invio notifica:', e);
       }
@@ -495,7 +505,8 @@
         if (permission === 'granted') {
           if (messaging) {
             const token = await getToken(messaging, { 
-              vapidKey: "BJnvFe-amLgnp89cNI2k1XAmMw5cMvy9yzEMhIAGb9pwHlRCEUKQWmkKyNnBeo3TtDVgToa6Le2daJT4RzgX9u0"
+              vapidKey: "BJnvFe-amLgnp89cNI2k1XAmMw5cMvy9yzEMhIAGb9pwHlRCEUKQWmkKyNnBeo3TtDVgToa6Le2daJT4RzgX9u0",
+              serviceWorkerRegistration: swRegistration
             });
             
             await setDoc(doc(db, "admin_tokens", token), { token: token, data: serverTimestamp() });
