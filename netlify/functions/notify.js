@@ -47,7 +47,7 @@ exports.handler = async function (event) {
     }
 
     const messaggio = {
-      notification: {
+      data: {
         title: body.title || 'Nuova Prenotazione',
         body: body.body || '',
       },
