@@ -298,7 +298,7 @@
         const isWarning = !isEsaurito && p.giacenza <= 5;
         
         html += `<tr style="${isEsaurito ? 'background-color: #f9f9f9; color: #999;' : isWarning ? 'background-color: #fff3e0;' : ''}">
-                  <td class="col-prod">${p.tipo} ${isWarning ? '<span class="warning-badge">ULTIMI!</span>' : isEsaurito ? '<span class="danger-badge">ESAURITO</span>' : ''}</td>
+                  <td class="col-prod">${p.tipo} ${isWarning ? '<span class="warning-badge">ULTIMI!</span>' : ''}</td>
                   <td class="col-disp">${p.giacenza}</td>
                   <td class="col-qta">
                     ${!isEsaurito 
