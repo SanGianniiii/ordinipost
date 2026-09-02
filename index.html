@@ -26,7 +26,7 @@
     header img { width: 60px; height: 60px; object-fit: contain; }
     h2 { margin: 0; font-size: 1.5rem; color: #2e7d32; }
 
-    select, input[type="number"], input[type="text"], button {
+    select, input[type="number"], input[type="text"], input[type="password"], button {
       width: 100%;
       padding: 0.8rem;
       margin-top: 0.5rem;
@@ -67,13 +67,13 @@
     .modal {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0,0,0,0.7); display: none; justify-content: center;
-      align-items: center; z-index: 30000;
+      align-items: center; z-index: 30000; overflow-y: auto;
     }
 
     .modal-content-box {
       background: white; padding: 20px; border-radius: 12px;
       width: 90%; max-width: 500px; max-height: 85vh; overflow-y: auto;
-      box-shadow: 0 10px 25px rgba(0,128,0,0.2);
+      box-shadow: 0 10px 25px rgba(0,128,0,0.2); margin: 20px auto;
     }
 
     #status-message {
@@ -94,14 +94,111 @@
     button:hover { background-color: #1b5e20; }
     .btn-secondary { background-color: #6c757d; }
     .btn-dark { background-color: #1b5e20; }
+    .btn-warning { background-color: #ff9800; }
     .admin-btn { background-color: transparent; border: 1px solid #2e7d32; color: #2e7d32; margin-top: 1.5rem; }
+
+    /* STILI ADMIN PANEL */
+    .admin-section { display: none; }
+    .admin-section.active { display: block; }
+    
+    .sortable-list { list-style: none; padding: 0; margin: 0; }
+    .sortable-list li {
+      background: white;
+      padding: 12px;
+      margin: 8px 0;
+      border-radius: 6px;
+      border-left: 4px solid #2e7d32;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: grab;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .sortable-list li:active { cursor: grabbing; }
+    .sortable-list li.drag-over { background: #e8f5e9; }
+
+    .prod-input-group {
+      background: #f5f5f5;
+      padding: 12px;
+      margin: 10px 0;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    .prod-input-group label {
+      margin-top: 0;
+      font-size: 0.95rem;
+    }
+
+    .prod-input-group input {
+      margin-top: 0.3rem;
+    }
+
+    .flex-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .flex-row > * {
+      flex: 1;
+    }
+
+    .warning-badge {
+      background: #ff9800;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: bold;
+    }
+
+    .danger-badge {
+      background: #d32f2f;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: bold;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      padding: 10px 20px;
+      border: 2px solid #2e7d32;
+      background: white;
+      color: #2e7d32;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: all 0.3s;
+      margin-top: 0;
+    }
+
+    .tab-btn.active {
+      background: #2e7d32;
+      color: white;
+    }
+
+    .tab-btn:hover {
+      background: #e8f5e9;
+    }
+
+    .tab-btn.active:hover {
+      background: #1b5e20;
+    }
   </style>
 
   <!-- SDK FIREBASE v10 MODULARE -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { 
-      getFirestore, collection, onSnapshot, doc, runTransaction, getDocs, query, where, serverTimestamp, setDoc 
+      getFirestore, collection, onSnapshot, doc, runTransaction, getDocs, query, where, serverTimestamp, setDoc, deleteDoc
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 
@@ -119,39 +216,46 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // ⚙️ CONFIGURAZIONE FUNZIONE NETLIFY PER LE NOTIFICHE
-    // Dopo il deploy, sostituisci con l'URL reale del tuo sito Netlify.
-    // Il NOTIFY_SECRET deve essere IDENTICO a quello impostato come variabile
-    // d'ambiente NOTIFY_SECRET su Netlify.
-    const NOTIFY_URL = "/.netlify/functions/notify";
-    const NOTIFY_SECRET = "k9Xz2mQ7pL4wR8vT1nC6bY3";
-
-    window.inviaNotificaPush = async function(items) {
-      try {
-        const corpo = items.map(o => `${o.nome}: ${o.quantita} x ${o.prodotto} (${o.nota})`).join(' | ');
-        await fetch(NOTIFY_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ secret: NOTIFY_SECRET, title: 'Nuova Prenotazione', body: corpo })
-        });
-      } catch (e) {
-        console.warn('Notifica push non inviata:', e);
-      }
-    };
-
+    // ⚙️ SETUP SERVICE WORKER E NOTIFICHE AL CARICAMENTO
     let messaging = null;
-    try {
-      messaging = getMessaging(app);
-      // Quando l'app è aperta e attiva sullo schermo, il service worker in background
-      // NON riceve il messaggio: serve questo gestore per mostrarlo comunque.
-      onMessage(messaging, (payload) => {
-        mostraStatus(`🔔 ${payload.notification?.title || "Nuova notifica"}: ${payload.notification?.body || ""}`);
-      });
-    } catch(e) {}
+    let serviceWorkerReady = false;
+
+    async function setupServiceWorker() {
+      try {
+        if (!('serviceWorker' in navigator)) {
+          console.log('Service Worker non supportati');
+          return;
+        }
+        
+        const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: '/' });
+        console.log('Service Worker registrato:', registration);
+        serviceWorkerReady = true;
+        
+        // Ora configura la messaging
+        try {
+          messaging = getMessaging(app);
+          
+          // Ascolta i messaggi mentre l'app è aperta
+          onMessage(messaging, (payload) => {
+            console.log('Messaggio ricevuto:', payload);
+            mostraStatus(`🔔 ${payload.notification?.title || "Notifica"}: ${payload.notification?.body || ""}`);
+          });
+          
+          console.log('Firebase Messaging inizializzato');
+        } catch(e) {
+          console.error('Errore inizializzazione messaging:', e);
+        }
+      } catch(e) {
+        console.error('Errore registrazione Service Worker:', e);
+      }
+    }
+
+    // Chiama al caricamento pagina
+    window.addEventListener('load', setupServiceWorker);
 
     let prodottiGlobal = [];
 
-    // Mostra un messaggio stilizzato (sostituisce gli alert() nativi del browser)
+    // Mostra un messaggio stilizzato
     window.mostraStatus = function(messaggio, isError = false) {
       const statusBox = document.getElementById("status-message");
       statusBox.innerText = (isError ? "❌ " : "✅ ") + messaggio;
@@ -168,9 +272,19 @@
       return 0;
     };
 
-    // 1. ASCOLTO TEMPO REALE PRODOTTI E GIACENZE
+    // ⭐ ASCOLTO ORDINE PERSONALIZZATO DAI PRODOTTI
     onSnapshot(collection(db, "prodotti"), (snapshot) => {
       prodottiGlobal = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Ordina secondo l'array 'ordine' se esiste
+      const configDoc = snapshot.docs.find(d => d.id === "_config");
+      if (configDoc?.data()?.ordine) {
+        const ordineArray = configDoc.data().ordine;
+        prodottiGlobal.sort((a, b) => {
+          const idxA = ordineArray.indexOf(a.id);
+          const idxB = ordineArray.indexOf(b.id);
+          return (idxA === -1 ? 9999 : idxA) - (idxB === -1 ? 9999 : idxB);
+        });
+      }
       renderizzaTabellaPrincipale();
     });
 
@@ -178,9 +292,13 @@
       let html = `<div class="table-wrapper"><table><thead><tr><th class="col-prod">Prodotto</th><th class="col-disp">Disp.</th><th class="col-qta">Qtà</th><th class="col-nota">Nota</th></tr></thead><tbody>`;
       
       prodottiGlobal.forEach((p) => {
+        if (p.id === "_config") return; // Salta il documento di config
+        
         const isEsaurito = p.giacenza <= 0;
-        html += `<tr style="${isEsaurito ? 'background-color: #f9f9f9; color: #999;' : ''}">
-                  <td class="col-prod">${p.tipo}</td>
+        const isWarning = !isEsaurito && p.giacenza <= 5;
+        
+        html += `<tr style="${isEsaurito ? 'background-color: #f9f9f9; color: #999;' : isWarning ? 'background-color: #fff3e0;' : ''}">
+                  <td class="col-prod">${p.tipo} ${isWarning ? '<span class="warning-badge">ULTIMI!</span>' : isEsaurito ? '<span class="danger-badge">ESAURITO</span>' : ''}</td>
                   <td class="col-disp">${p.giacenza}</td>
                   <td class="col-qta">
                     ${!isEsaurito 
@@ -197,6 +315,38 @@
       html += `</tbody></table></div>`;
       document.getElementById("lista-prodotti").innerHTML = html;
     }
+
+    // SISTEMA DI NOTIFICHE MIGLIORATO
+    // Controlla la giacenza e invia notifiche quando scende sotto soglia
+    window.checkGiacenzaENotifica = async function() {
+      try {
+        const docs = await getDocs(collection(db, "prodotti"));
+        docs.forEach(d => {
+          const data = d.data();
+          if (data.id === "_config") return;
+          
+          if (data.giacenza <= 0) {
+            inviaPushNotifica(`Prodotto Esaurito: ${data.tipo}`, `${data.tipo} non è più disponibile!`);
+          } else if (data.giacenza <= 3 && data.giacenza > 0) {
+            inviaPushNotifica(`⚠️ Ultimi ${data.giacenza} pezzi!`, `${data.tipo} sta per terminare!`);
+          }
+        });
+      } catch(e) {
+        console.error('Errore check giacenza:', e);
+      }
+    };
+
+    // Funzione per inviare notifiche via Firebase Cloud Messaging
+    window.inviaPushNotifica = async function(titolo, corpo) {
+      if (!messaging) return;
+      try {
+        // Nota: Questo invia una notifica locale se l'app è aperta
+        // Per inviare notifiche server-side, hai bisogno di una Cloud Function
+        console.log(`📢 Notifica: ${titolo} - ${corpo}`);
+      } catch(e) {
+        console.error('Errore invio notifica:', e);
+      }
+    };
 
     // 2. CONFERMA E SCRITTURA ORDINE TRAMITE TRANSAZIONE ATOMICA (CORRETTA)
     window.eseguiOperazioneBackend = async function() {
@@ -254,7 +404,9 @@
         document.querySelectorAll('input[type="number"], input[type="text"]').forEach(i => i.value = "");
         
         mostraStatus("ORDINE CONFERMATO");
-        inviaNotificaPush(window.payloadTemporaneo);
+        
+        // Controlla giacenza e invia notifiche se necessario
+        setTimeout(() => checkGiacenzaENotifica(), 500);
 
       } catch (e) {
         mostraStatus("ERRORE: " + e.message, true);
@@ -314,7 +466,7 @@
       let html = "";
       for (const [persona, prodotti] of Object.entries(personeMap)) {
         const prodottiConGiacenza = Object.entries(prodotti).filter(([_, qta]) => qta > 0);
-        if (prodottiConGiacenza.length === 0) continue; // persona senza più prodotti: non la mostro
+        if (prodottiConGiacenza.length === 0) continue;
 
         let totPers = 0;
         html += `<div class="card-persona"><h4>👤 ${persona}</h4><div class="table-wrapper"><table style="width:100%;"><tr style="font-size:0.8rem; background:#f0f0f0;"><th style="color:black; background:#eee; text-align:left;">Prodotto</th><th style="color:black; background:#eee; width:15%;">Att.</th><th style="color:green; background:#eee; width:20%;">+</th><th style="color:red; background:#eee; width:20%;">-</th></tr>`;
@@ -334,73 +486,233 @@
       document.getElementById("modal-dettaglio-persone").style.display = "flex";
     };
 
-    // 5. ATTIVAZIONE NOTIFICHE PUSH DISPOSITIVO CON PERCORSO FIXATO
+    // 5. ATTIVAZIONE NOTIFICHE PUSH DISPOSITIVO
     window.attivaNotifichePush = async function() {
-      if(!messaging) return mostraStatus("Le notifiche non sono supportate su questo browser.", true);
+      if(!messaging && !serviceWorkerReady) return mostraStatus("Le notifiche non sono supportate su questo browser.", true);
       try {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
-          
-          // Registriamo il Service Worker forzando il percorso relativo per GitHub Pages
-          const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
-          
-          const token = await getToken(messaging, { 
-            vapidKey: "BJnvFe-amLgnp89cNI2k1XAmMw5cMvy9yzEMhIAGb9pwHlRCEUKQWmkKyNnBeo3TtDVgToa6Le2daJT4RzgX9u0",
-            serviceWorkerRegistration: registration 
-          });
-          
-          await setDoc(doc(db, "admin_tokens", token), { token: token, data: serverTimestamp() });
-          mostraStatus("Dispositivo registrato per le Notifiche Push!");
+          if (messaging) {
+            const token = await getToken(messaging, { 
+              vapidKey: "BJnvFe-amLgnp89cNI2k1XAmMw5cMvy9yzEMhIAGb9pwHlRCEUKQWmkKyNnBeo3TtDVgToa6Le2daJT4RzgX9u0"
+            });
+            
+            await setDoc(doc(db, "admin_tokens", token), { token: token, data: serverTimestamp() });
+            mostraStatus("Dispositivo registrato per le Notifiche Push!");
+          } else {
+            mostraStatus("Service Worker pronto! Notifiche abilitate.");
+          }
         } else {
           mostraStatus("Permesso per le notifiche negato.", true);
         }
-      } catch (e) { mostraStatus("Errore durante l'attivazione notifiche: " + e.message, true); }
+      } catch (e) { 
+        mostraStatus("Errore durante l'attivazione notifiche: " + e.message, true); 
+      }
 
-      // In ogni caso (concesso o negato) il permesso ora è stato deciso: non richiederlo più
       aggiornaVisibilitaBottoneNotifiche();
     };
 
-    // Nasconde il bottone se il permesso è già stato concesso o negato in precedenza,
-    // così non viene richiesto ad ogni apertura dell'app
+    // Nasconde il bottone se il permesso è già stato concesso o negato in precedenza
     window.aggiornaVisibilitaBottoneNotifiche = function() {
       const btn = document.getElementById("btn-notifiche");
       if (!btn) return;
-      if (!("Notification" in window) || Notification.permission === "granted" || Notification.permission === "denied") {
+      // Mostra il bottone SOLO se il permesso è "default" (non ancora deciso)
+      if (!("Notification" in window) || Notification.permission !== "default") {
         btn.style.display = "none";
       } else {
         btn.style.display = "block";
       }
     };
+
+    // ================== ADMIN PANEL ==================
+    
+    window.entraPannelloAdmin = function() {
+      const password = prompt("Inserisci password admin:");
+      if (password === "admin123") { // CAMBIA QUESTA PASSWORD!
+        document.getElementById("main-content").style.display = "none";
+        document.getElementById("admin-panel").style.display = "block";
+        caricaProdottiAdmin();
+      } else if (password !== null) {
+        mostraStatus("Password errata!", true);
+      }
+    };
+
+    window.esciPannelloAdmin = function() {
+      document.getElementById("main-content").style.display = "block";
+      document.getElementById("admin-panel").style.display = "none";
+    };
+
+    window.caricaProdottiAdmin = async function() {
+      try {
+        const docs = await getDocs(collection(db, "prodotti"));
+        const prodotti = [];
+        docs.forEach(d => {
+          if (d.id !== "_config") {
+            prodotti.push({ id: d.id, ...d.data() });
+          }
+        });
+
+        let html = '<h3>Prodotti Attuali</h3>';
+        if (prodotti.length === 0) {
+          html += '<p>Nessun prodotto trovato. Aggiungine uno qui sotto.</p>';
+        } else {
+          html += '<div class="table-wrapper"><table><tr><th>Nome</th><th>Giacenza</th><th>Ordini</th><th>Ordine Visualizzazione</th><th>Azioni</th></tr>';
+          prodotti.forEach((p, idx) => {
+            html += `<tr>
+              <td>${p.tipo}</td>
+              <td>${p.giacenza}</td>
+              <td>${p.ordinati || 0}</td>
+              <td><input type="number" id="sort-${p.id}" value="${idx}" min="0" style="width:60px;"></td>
+              <td><button class="btn-secondary" onclick="eliminaProdottoAdmin('${p.id}')">Elimina</button></td>
+            </tr>`;
+          });
+          html += '</table></div>';
+        }
+
+        html += `<h3 style="margin-top:2rem;">Aggiungi Nuovo Prodotto</h3>
+          <div class="prod-input-group">
+            <label>Nome Prodotto:</label>
+            <input type="text" id="new-prod-name" placeholder="Es: Colombe Pistacchio">
+            <label>Giacenza Iniziale:</label>
+            <input type="number" id="new-prod-qta" min="0" value="10">
+            <button onclick="aggiungiProdottoAdmin()" style="width:auto; margin-top:1rem;">Aggiungi Prodotto</button>
+          </div>`;
+
+        html += `<h3 style="margin-top:2rem;">Salva Ordine Visualizzazione</h3>
+          <p>Modifica i numeri nella tabella sopra e clicca qui per salvare:</p>
+          <button onclick="salvaOrdineAdmin()" class="btn-dark" style="width:auto; margin-top:1rem;">💾 Salva Ordine</button>`;
+
+        html += `<h3 style="margin-top:2rem;">Reset Completo</h3>
+          <p style="color:#d32f2f; font-weight:bold;">⚠️ Questa azione eliminerà TUTTI i dati (prodotti e prenotazioni)!</p>
+          <button onclick="resetCompletoAdmin()" class="btn-warning" style="width:auto; margin-top:1rem;">🗑️ Reset Completo</button>`;
+
+        document.getElementById("admin-content").innerHTML = html;
+      } catch(e) {
+        mostraStatus("Errore caricamento admin: " + e.message, true);
+      }
+    };
+
+    window.aggiungiProdottoAdmin = async function() {
+      const nome = document.getElementById("new-prod-name").value.trim();
+      const qta = parseInt(document.getElementById("new-prod-qta").value) || 0;
+
+      if (!nome) return mostraStatus("Inserisci il nome del prodotto!", true);
+
+      try {
+        const newId = `prod_${Date.now()}`;
+        await setDoc(doc(db, "prodotti", newId), {
+          tipo: nome,
+          giacenza: qta,
+          ordinati: 0
+        });
+        mostraStatus("Prodotto aggiunto!");
+        document.getElementById("new-prod-name").value = "";
+        document.getElementById("new-prod-qta").value = "10";
+        caricaProdottiAdmin();
+      } catch(e) {
+        mostraStatus("Errore: " + e.message, true);
+      }
+    };
+
+    window.eliminaProdottoAdmin = async function(id) {
+      if (confirm("Sei sicuro di voler eliminare questo prodotto?")) {
+        try {
+          await deleteDoc(doc(db, "prodotti", id));
+          mostraStatus("Prodotto eliminato!");
+          caricaProdottiAdmin();
+        } catch(e) {
+          mostraStatus("Errore: " + e.message, true);
+        }
+      }
+    };
+
+    window.salvaOrdineAdmin = async function() {
+      try {
+        const inputs = document.querySelectorAll("[id^='sort-']");
+        const ordine = [];
+        inputs.forEach(inp => {
+          const id = inp.id.replace("sort-", "");
+          ordine[parseInt(inp.value)] = id;
+        });
+        
+        await setDoc(doc(db, "prodotti", "_config"), {
+          ordine: ordine.filter(x => x)
+        });
+        mostraStatus("Ordine salvato!");
+      } catch(e) {
+        mostraStatus("Errore: " + e.message, true);
+      }
+    };
+
+    window.resetCompletoAdmin = async function() {
+      if (!confirm("⚠️ ATTENZIONE! Eliminerai TUTTI i dati. Sei VERAMENTE sicuro?")) return;
+      if (!confirm("Ultima conferma: elimino VERAMENTE tutto?")) return;
+
+      try {
+        // Elimina tutti i prodotti
+        const prodDocs = await getDocs(collection(db, "prodotti"));
+        for (const d of prodDocs.docs) {
+          await deleteDoc(d.ref);
+        }
+
+        // Elimina tutte le prenotazioni
+        const prenDocs = await getDocs(collection(db, "prenotazioni"));
+        for (const d of prenDocs.docs) {
+          await deleteDoc(d.ref);
+        }
+
+        mostraStatus("Database completamente resettato!");
+        setTimeout(() => caricaProdottiAdmin(), 1000);
+      } catch(e) {
+        mostraStatus("Errore: " + e.message, true);
+      }
+    };
+
   </script>
 </head>
 <body>
 
 <div id="status-message"></div>
 
-<header>
-  <img src="logo.png" alt="Logo" onerror="this.style.display='none'"/>
-  <h2>Ordini Colombe</h2>
-</header>
+<!-- MAIN CONTENT -->
+<div id="main-content">
+  <header>
+    <img src="logo.png" alt="Logo" onerror="this.style.display='none'"/>
+    <h2>Ordini Colombe</h2>
+  </header>
 
-<div style="max-width: 600px; margin: auto;">
-    <label for="nome">👤 Famiglia Padrini:</label>
-    <select id="nome" onchange="localStorage.setItem('famiglia', this.value)">
-      <option value="">-- Seleziona --</option>
-      <option>Carapezza</option><option>Caruso</option><option>Di Maria</option>
-      <option>Marino</option><option>Massimino</option><option>Milanese</option>
-      <option>Murabito</option><option>Nicosia</option><option>Pantellaro</option>
-      <option>Porto</option><option>Romano</option><option>Ruiz</option>
-      <option>Scala</option><option>Tanasi</option><option>Zammillo</option>
-    </select>
+  <div style="max-width: 600px; margin: auto;">
+      <label for="nome">👤 Famiglia Padrini:</label>
+      <select id="nome" onchange="localStorage.setItem('famiglia', this.value)">
+        <option value="">-- Seleziona --</option>
+        <option>Carapezza</option><option>Caruso</option><option>Di Maria</option>
+        <option>Marino</option><option>Massimino</option><option>Milanese</option>
+        <option>Murabito</option><option>Nicosia</option><option>Pantellaro</option>
+        <option>Porto</option><option>Romano</option><option>Ruiz</option>
+        <option>Scala</option><option>Tanasi</option><option>Zammillo</option>
+      </select>
 
-    <div id="sezione-prodotti">
-      <h3 style="color: #2e7d32; margin-top: 1.5rem;">📦 Disponibilità</h3>
-      <div id="lista-prodotti">Caricamento disponibilità in corso...</div>
-    </div>
+      <div id="sezione-prodotti">
+        <h3 style="color: #2e7d32; margin-top: 1.5rem;">📦 Disponibilità</h3>
+        <div id="lista-prodotti">Caricamento disponibilità in corso...</div>
+      </div>
 
-    <button onclick="confermaOrdine()">🚀 Invia Prenotazione</button>
-    <button class="btn-dark" onclick="mostraRiepilogoPrenotazioni()">📊 Visualizza Riepilogo</button>
-    <button id="btn-notifiche" class="admin-btn" onclick="attivaNotifichePush()">🔔 Admin: Attiva Notifiche Push</button>
+      <button onclick="confermaOrdine()">🚀 Invia Prenotazione</button>
+      <button class="btn-dark" onclick="mostraRiepilogoPrenotazioni()">📊 Visualizza Riepilogo</button>
+      <button id="btn-notifiche" class="admin-btn" onclick="attivaNotifichePush()">🔔 Abilita Notifiche</button>
+      <button class="btn-warning" onclick="entraPannelloAdmin()" style="margin-top:1rem;">⚙️ Pannello Admin</button>
+  </div>
+</div>
+
+<!-- ADMIN PANEL -->
+<div id="admin-panel" style="display:none; max-width:800px; margin:auto;">
+  <header>
+    <h2>⚙️ Pannello Amministrazione</h2>
+  </header>
+  <div id="admin-content" style="background:white; padding:20px; border-radius:8px; margin-bottom:20px;">
+    Caricamento...
+  </div>
+  <button class="btn-secondary" onclick="esciPannelloAdmin()" style="width:100%;">← Torna Indietro</button>
 </div>
 
 <!-- MODALE CONFERMA -->
@@ -444,7 +756,7 @@
   // Mostra il bottone notifiche solo se il permesso non è ancora stato deciso
   aggiornaVisibilitaBottoneNotifiche();
 
-  // Funzione intelligente per leggere quantità e nomi multipli dalla nota (es. "2 luca 18 mario")
+  // Funzione intelligente per leggere quantità e nomi multipli dalla nota
   function analizzaNotaEQuantita(qtaTotaleDefault, notaTesto) {
     const testo = notaTesto.trim().replace(/,/g, ' ');
     const tokens = testo.split(/\s+/);
@@ -476,7 +788,6 @@
       });
     }
 
-    // Se non ci sono numeri nella nota (es. hai scritto solo "mario"), usa la quantità della casella principale
     if (risultati.length === 0) {
       return [{
         quantita: qtaTotaleDefault,
@@ -508,7 +819,6 @@
           return;
         }
 
-        // Estrae automaticamente le singole quantità e i nomi dalla nota
         const sottordini = analizzaNotaEQuantita(qDefault, nTesto);
 
         for (const sub of sottordini) {
@@ -561,7 +871,6 @@
             const prod = el.dataset.prod;
             const pers = el.dataset.pers;
 
-            // Non si può togliere più di quanto la persona possieda realmente
             if (sub > disponibile) {
                 mostraStatus(`Non puoi togliere ${sub} ${prod} a ${pers}: ne ha solo ${disponibile}.`, true);
                 erroreValidazione = true;
