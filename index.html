@@ -264,12 +264,10 @@
       setTimeout(() => statusBox.style.display = "none", isError ? 3500 : 2500);
     };
 
-    const PREZZI = { "pistacchio": 19, "nocciola": 19, "fondente": 19, "mandorla": 19, "caffe": 19, "pera ciocco": 17, "arancia candita": 17, "frutti di bosco": 17, "jelly limone arancia rossa": 19 };
-
-    window.getPrezzo = (nome) => {
-      const n = nome.toLowerCase();
-      for (const [k, v] of Object.entries(PREZZI)) { if (n.includes(k)) return v; }
-      return 0;
+    // Prezzo letto direttamente dal prodotto nel database (campo "prezzo"), non più da parole chiave
+    window.getPrezzo = (nomeProdotto) => {
+      const pObj = prodottiGlobal.find(x => x.tipo === nomeProdotto);
+      return pObj && pObj.prezzo ? Number(pObj.prezzo) : 0;
     };
 
     // ⭐ ASCOLTO ORDINE PERSONALIZZATO DAI PRODOTTI
@@ -458,13 +456,16 @@
       const personeMap = {};
       snapshot.forEach(doc => {
         const d = doc.data();
-        const persona = d.nota.trim() || "Generale";
-        if (!personeMap[persona]) personeMap[persona] = {};
-        personeMap[persona][d.prodotto] = (personeMap[persona][d.prodotto] || 0) + d.quantita;
+        const notaOriginale = (d.nota || "").trim();
+        const chiave = notaOriginale ? notaOriginale.toLowerCase() : "generale";
+        if (!personeMap[chiave]) {
+          personeMap[chiave] = { label: notaOriginale ? capitalizzaNome(notaOriginale) : "Generale", prodotti: {} };
+        }
+        personeMap[chiave].prodotti[d.prodotto] = (personeMap[chiave].prodotti[d.prodotto] || 0) + d.quantita;
       });
 
       let html = "";
-      for (const [persona, prodotti] of Object.entries(personeMap)) {
+      for (const { label: persona, prodotti } of Object.values(personeMap)) {
         const prodottiConGiacenza = Object.entries(prodotti).filter(([_, qta]) => qta > 0);
         if (prodottiConGiacenza.length === 0) continue;
 
@@ -556,11 +557,12 @@
         if (prodotti.length === 0) {
           html += '<p>Nessun prodotto trovato. Aggiungine uno qui sotto.</p>';
         } else {
-          html += '<div class="table-wrapper"><table><tr><th>Nome</th><th>Giacenza</th><th>Ordini</th><th>Ordine Visualizzazione</th><th>Azioni</th></tr>';
+          html += '<div class="table-wrapper"><table><tr><th>Nome</th><th>Giacenza</th><th>Prezzo (€)</th><th>Ordini</th><th>Ordine Visualizzazione</th><th>Azioni</th></tr>';
           prodotti.forEach((p, idx) => {
             html += `<tr>
               <td>${p.tipo}</td>
               <td>${p.giacenza}</td>
+              <td><input type="number" id="prezzo-${p.id}" value="${p.prezzo || 0}" min="0" step="0.5" style="width:70px;"></td>
               <td>${p.ordinati || 0}</td>
               <td><input type="number" id="sort-${p.id}" value="${idx}" min="0" style="width:60px;"></td>
               <td><button class="btn-secondary" onclick="eliminaProdottoAdmin('${p.id}')">Elimina</button></td>
@@ -575,12 +577,14 @@
             <input type="text" id="new-prod-name" placeholder="Es: Colombe Pistacchio">
             <label>Giacenza Iniziale:</label>
             <input type="number" id="new-prod-qta" min="0" value="10">
+            <label>Prezzo (€):</label>
+            <input type="number" id="new-prod-prezzo" min="0" step="0.5" value="0">
             <button onclick="aggiungiProdottoAdmin()" style="width:auto; margin-top:1rem;">Aggiungi Prodotto</button>
           </div>`;
 
-        html += `<h3 style="margin-top:2rem;">Salva Ordine Visualizzazione</h3>
-          <p>Modifica i numeri nella tabella sopra e clicca qui per salvare:</p>
-          <button onclick="salvaOrdineAdmin()" class="btn-dark" style="width:auto; margin-top:1rem;">💾 Salva Ordine</button>`;
+        html += `<h3 style="margin-top:2rem;">Salva Ordine Visualizzazione e Prezzi</h3>
+          <p>Modifica i numeri nella tabella sopra (ordine e/o prezzo) e clicca qui per salvare:</p>
+          <button onclick="salvaOrdineAdmin()" class="btn-dark" style="width:auto; margin-top:1rem;">💾 Salva Ordine e Prezzi</button>`;
 
         html += `<h3 style="margin-top:2rem;">Reset Completo</h3>
           <p style="color:#d32f2f; font-weight:bold;">⚠️ Questa azione eliminerà TUTTI i dati (prodotti e prenotazioni)!</p>
@@ -595,6 +599,7 @@
     window.aggiungiProdottoAdmin = async function() {
       const nome = document.getElementById("new-prod-name").value.trim();
       const qta = parseInt(document.getElementById("new-prod-qta").value) || 0;
+      const prezzo = parseFloat(document.getElementById("new-prod-prezzo").value) || 0;
 
       if (!nome) return mostraStatus("Inserisci il nome del prodotto!", true);
 
@@ -603,11 +608,13 @@
         await setDoc(doc(db, "prodotti", newId), {
           tipo: nome,
           giacenza: qta,
+          prezzo: prezzo,
           ordinati: 0
         });
         mostraStatus("Prodotto aggiunto!");
         document.getElementById("new-prod-name").value = "";
         document.getElementById("new-prod-qta").value = "10";
+        document.getElementById("new-prod-prezzo").value = "0";
         caricaProdottiAdmin();
       } catch(e) {
         mostraStatus("Errore: " + e.message, true);
@@ -634,11 +641,20 @@
           const id = inp.id.replace("sort-", "");
           ordine[parseInt(inp.value)] = id;
         });
-        
+
         await setDoc(doc(db, "prodotti", "_config"), {
           ordine: ordine.filter(x => x)
         });
-        mostraStatus("Ordine salvato!");
+
+        // Salva anche i prezzi modificati per ciascun prodotto
+        const prezzoInputs = document.querySelectorAll("[id^='prezzo-']");
+        for (const inp of prezzoInputs) {
+          const id = inp.id.replace("prezzo-", "");
+          const prezzo = parseFloat(inp.value) || 0;
+          await setDoc(doc(db, "prodotti", id), { prezzo: prezzo }, { merge: true });
+        }
+
+        mostraStatus("Ordine e prezzi salvati!");
       } catch(e) {
         mostraStatus("Errore: " + e.message, true);
       }
@@ -678,7 +694,7 @@
 <div id="main-content">
   <header>
     <img src="logo.png" alt="Logo" onerror="this.style.display='none'"/>
-    <h2>Ordini Panettoni</h2>
+    <h2>Ordini Colombe</h2>
   </header>
 
   <div style="max-width: 600px; margin: auto;">
@@ -757,6 +773,14 @@
   aggiornaVisibilitaBottoneNotifiche();
 
   // Funzione intelligente per leggere quantità e nomi multipli dalla nota
+  function capitalizzaNome(str) {
+    return str
+      .trim()
+      .split(/\s+/)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ");
+  }
+
   function analizzaNotaEQuantita(qtaTotaleDefault, notaTesto) {
     const testo = notaTesto.trim().replace(/,/g, ' ');
     const tokens = testo.split(/\s+/);
@@ -771,7 +795,7 @@
         if (correnteQta !== null) {
           risultati.push({
             quantita: parseInt(correnteQta),
-            nota: correnteNome.join(" ").trim()
+            nota: capitalizzaNome(correnteNome.join(" "))
           });
           correnteNome = [];
         }
@@ -784,14 +808,14 @@
     if (correnteQta !== null) {
       risultati.push({
         quantita: parseInt(correnteQta),
-        nota: correnteNome.join(" ").trim()
+        nota: capitalizzaNome(correnteNome.join(" "))
       });
     }
 
     if (risultati.length === 0) {
       return [{
         quantita: qtaTotaleDefault,
-        nota: notaTesto.trim()
+        nota: capitalizzaNome(notaTesto)
       }];
     }
 
