@@ -198,7 +198,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { 
-      getFirestore, collection, onSnapshot, doc, runTransaction, getDocs, query, where, serverTimestamp, setDoc, deleteDoc
+      getFirestore, collection, onSnapshot, doc, getDoc, runTransaction, getDocs, query, where, serverTimestamp, setDoc, deleteDoc
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 
@@ -604,7 +604,20 @@
       if (!nome) return mostraStatus("Inserisci il nome del prodotto!", true);
 
       try {
-        const newId = `prod_${Date.now()}`;
+        let newId = nome
+          .trim()
+          .toLowerCase()
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // rimuove accenti
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+        if (!newId) newId = `prod_${Date.now()}`;
+
+        // Se esiste già un prodotto con questo ID, aggiunge un suffisso per evitare conflitti
+        const esistente = await getDoc(doc(db, "prodotti", newId));
+        if (esistente.exists()) {
+          newId = `${newId}-${Date.now()}`;
+        }
+
         await setDoc(doc(db, "prodotti", newId), {
           tipo: nome,
           giacenza: qta,
