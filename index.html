@@ -193,6 +193,12 @@
       background: #1b5e20;
     }
   </style>
+  <style media="print">
+    body * { visibility: hidden; }
+    #contenuto-stampa-famiglie, #contenuto-stampa-famiglie * { visibility: visible; }
+    #contenuto-stampa-famiglie { position: absolute; top: 0; left: 0; width: 100%; }
+    .no-print { display: none !important; }
+  </style>
 
   <!-- SDK FIREBASE v10 MODULARE -->
   <script type="module">
@@ -241,7 +247,7 @@
           // Ascolta i messaggi mentre l'app è aperta
           onMessage(messaging, (payload) => {
             console.log('Messaggio ricevuto:', payload);
-            mostraStatus(`🔔 ${payload.notification?.title || "Notifica"}: ${payload.notification?.body || ""}`);
+            mostraStatus(`🔔 ${payload.data?.title || "Notifica"}: ${payload.data?.body || ""}`);
           });
           
           console.log('Firebase Messaging inizializzato');
@@ -318,24 +324,28 @@
     }
 
     // SISTEMA DI NOTIFICHE MIGLIORATO
-    // Controlla la giacenza e invia notifiche quando scende sotto soglia
-    window.checkGiacenzaENotifica = async function() {
-      try {
-        const docs = await getDocs(collection(db, "prodotti"));
-        docs.forEach(d => {
-          const data = d.data();
-          if (data.id === "_config") return;
-          
-          if (data.giacenza <= 0) {
-            inviaPushNotifica(`Prodotto Esaurito: ${data.tipo}`, `${data.tipo} non è più disponibile!`);
-          } else if (data.giacenza <= 3 && data.giacenza > 0) {
-            inviaPushNotifica(`⚠️ Ultimi ${data.giacenza} pezzi!`, `${data.tipo} sta per terminare!`);
-          }
-        });
-      } catch(e) {
-        console.error('Errore check giacenza:', e);
+    // Controlla se il cambio di giacenza (vecchia -> nuova) deve generare una notifica.
+    // Le soglie 25 e 15 avvisano solo quando vengono "attraversate" scendendo.
+    // Da 10 in giù avvisa ad OGNI diminuzione. Se la giacenza risale sopra una soglia
+    // e poi ridiscende, la soglia può riattivarsi (nessuno stato salvato, si confrontano
+    // sempre i valori reali prima/dopo).
+    function calcolaNotificaGiacenza(nomeProdotto, vecchia, nuova) {
+      if (nuova >= vecchia) return null; // nessuna diminuzione, nessuna notifica
+
+      if (nuova <= 0) {
+        return { titolo: `Prodotto Esaurito: ${nomeProdotto}`, corpo: `${nomeProdotto} non è più disponibile!` };
       }
-    };
+      if (nuova <= 10) {
+        return { titolo: `⚠️ Solo ${nuova} pezzi rimasti!`, corpo: `${nomeProdotto} sta per terminare!` };
+      }
+      if (vecchia >= 15 && nuova < 15) {
+        return { titolo: `⚠️ ${nomeProdotto} sotto i 15 pezzi`, corpo: `Rimasti ${nuova} pezzi.` };
+      }
+      if (vecchia >= 25 && nuova < 25) {
+        return { titolo: `⚠️ ${nomeProdotto} sotto i 25 pezzi`, corpo: `Rimasti ${nuova} pezzi.` };
+      }
+      return null;
+    }
 
     // Funzione per inviare notifiche via Firebase Cloud Messaging
     window.inviaPushNotifica = async function(titolo, corpo) {
@@ -388,12 +398,18 @@
           }
 
           // FASE 2: Esegui TUTTI i WRITE (Scritture) dopo le letture
+          const notificheDaInviare = [];
           for (const op of operazioniPronte) {
+            const nuovaGiacenza = op.giacenzaAttuale - op.item.quantita;
+
             // Aggiorna giacenza
             transaction.update(op.prodRef, {
-              giacenza: op.giacenzaAttuale - op.item.quantita,
+              giacenza: nuovaGiacenza,
               ordinati: (op.datiProd.ordinati || 0) + op.item.quantita
             });
+
+            const notif = calcolaNotificaGiacenza(op.item.prodotto, op.giacenzaAttuale, nuovaGiacenza);
+            if (notif) notificheDaInviare.push(notif);
 
             // Registra prenotazione
             const prenRef = doc(collection(db, "prenotazioni"));
@@ -406,6 +422,9 @@
               data: serverTimestamp()
             });
           }
+
+          // Salva le notifiche da inviare fuori dalla transazione (non si può fare fetch dentro)
+          window._notificheInSospeso = notificheDaInviare;
         });
 
         // Reset input form
@@ -413,8 +432,9 @@
         
         mostraStatus("ORDINE CONFERMATO");
         
-        // Controlla giacenza e invia notifiche se necessario
-        setTimeout(() => checkGiacenzaENotifica(), 500);
+        // Invia le notifiche di soglia calcolate durante la transazione
+        (window._notificheInSospeso || []).forEach(n => inviaPushNotifica(n.titolo, n.corpo));
+        window._notificheInSospeso = [];
 
       } catch (e) {
         mostraStatus("ERRORE: " + e.message, true);
@@ -568,11 +588,15 @@
         if (prodotti.length === 0) {
           html += '<p>Nessun prodotto trovato. Aggiungine uno qui sotto.</p>';
         } else {
-          html += '<div class="table-wrapper"><table><tr><th>Nome</th><th>Giacenza</th><th>Prezzo (€)</th><th>Ordini</th><th>Ordine Visualizzazione</th><th>Azioni</th></tr>';
+          html += '<div class="table-wrapper"><table><tr><th>Nome</th><th>Giacenza</th><th>Aggiungi/Togli scorta</th><th>Prezzo (€)</th><th>Ordini</th><th>Ordine Visualizzazione</th><th>Azioni</th></tr>';
           prodotti.forEach((p, idx) => {
             html += `<tr>
               <td>${p.tipo}</td>
-              <td>${p.giacenza}</td>
+              <td id="giacenza-attuale-${p.id}">${p.giacenza}</td>
+              <td>
+                <input type="number" id="scorta-${p.id}" placeholder="es: 20 o -5" style="width:80px;">
+                <button class="btn-secondary" style="width:auto; padding:6px 10px;" onclick="aggiungiScortaAdmin('${p.id}', '${p.tipo.replace(/'/g, "\\'")}')">OK</button>
+              </td>
               <td><input type="number" id="prezzo-${p.id}" value="${p.prezzo || 0}" min="0" step="0.5" style="width:70px;"></td>
               <td>${p.ordinati || 0}</td>
               <td><input type="number" id="sort-${p.id}" value="${idx}" min="0" style="width:60px;"></td>
@@ -596,6 +620,10 @@
         html += `<h3 style="margin-top:2rem;">Salva Ordine Visualizzazione e Prezzi</h3>
           <p>Modifica i numeri nella tabella sopra (ordine e/o prezzo) e clicca qui per salvare:</p>
           <button onclick="salvaOrdineAdmin()" class="btn-dark" style="width:auto; margin-top:1rem;">💾 Salva Ordine e Prezzi</button>`;
+
+        html += `<h3 style="margin-top:2rem;">Riepilogo Ordini per Famiglia</h3>
+          <p>Vedi tutti gli ordini raggruppati per famiglia/padrino, con prodotti, quantità e totale — pronto per la stampa in PDF.</p>
+          <button onclick="mostraRiepilogoFamiglieAdmin()" class="btn-dark" style="width:auto; margin-top:1rem;">📋 Apri Riepilogo per Famiglia</button>`;
 
         html += `<h3 style="margin-top:2rem;">Reset Completo</h3>
           <p style="color:#d32f2f; font-weight:bold;">⚠️ Questa azione eliminerà TUTTI i dati (prodotti e prenotazioni)!</p>
@@ -645,6 +673,34 @@
       }
     };
 
+    window.aggiungiScortaAdmin = async function(id, nomeProdotto) {
+      const input = document.getElementById(`scorta-${id}`);
+      const delta = parseInt(input.value) || 0;
+      if (delta === 0) return mostraStatus("Inserisci una quantità diversa da zero (es: 20 per aggiungere, -5 per togliere).", true);
+
+      try {
+        const ref = doc(db, "prodotti", id);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return mostraStatus("Prodotto non trovato.", true);
+
+        const vecchia = snap.data().giacenza || 0;
+        const nuova = vecchia + delta;
+        if (nuova < 0) return mostraStatus(`Non puoi togliere ${Math.abs(delta)}: ci sono solo ${vecchia} pezzi.`, true);
+
+        await setDoc(ref, { giacenza: nuova }, { merge: true });
+        input.value = "";
+        mostraStatus(`Giacenza aggiornata: ${vecchia} → ${nuova}`);
+
+        // Se la modifica è una diminuzione che attraversa una soglia, notifica comunque
+        const notif = calcolaNotificaGiacenza(nomeProdotto, vecchia, nuova);
+        if (notif) inviaPushNotifica(notif.titolo, notif.corpo);
+
+        caricaProdottiAdmin();
+      } catch(e) {
+        mostraStatus("Errore: " + e.message, true);
+      }
+    };
+
     window.eliminaProdottoAdmin = async function(id) {
       if (confirm("Sei sicuro di voler eliminare questo prodotto?")) {
         try {
@@ -654,6 +710,71 @@
         } catch(e) {
           mostraStatus("Errore: " + e.message, true);
         }
+      }
+    };
+
+    // RIEPILOGO ORDINI PER FAMIGLIA (PADRINI) - stampabile in PDF
+    window.mostraRiepilogoFamiglieAdmin = async function() {
+      try {
+        const snapshot = await getDocs(collection(db, "prenotazioni"));
+
+        // Raggruppa per famiglia -> prodotto -> quantità totale
+        const famiglie = {};
+        snapshot.forEach(d => {
+          const dati = d.data();
+          const fam = dati.nome || "Sconosciuto";
+          if (!famiglie[fam]) famiglie[fam] = {};
+          famiglie[fam][dati.prodotto] = (famiglie[fam][dati.prodotto] || 0) + dati.quantita;
+        });
+
+        const nomiFamiglie = Object.keys(famiglie).sort((a, b) => a.localeCompare(b));
+
+        let html = `<p style="text-align:center; color:#666; margin-bottom:20px;">Generato il ${new Date().toLocaleDateString('it-IT')}</p>`;
+        let totaleGenerale = 0;
+
+        if (nomiFamiglie.length === 0) {
+          html += "<p>Nessun ordine trovato.</p>";
+        } else {
+          nomiFamiglie.forEach(fam => {
+            const prodotti = Object.entries(famiglie[fam]).filter(([_, qta]) => qta > 0);
+            if (prodotti.length === 0) return;
+
+            let totaleFamiglia = 0;
+            html += `<div class="card-persona" style="page-break-inside: avoid;">
+                       <h4>👤 ${fam}</h4>
+                       <div class="table-wrapper"><table style="width:100%;">
+                         <tr style="font-size:0.85rem; background:#f0f0f0;">
+                           <th style="text-align:left; color:black; background:#eee;">Prodotto</th>
+                           <th style="color:black; background:#eee;">Quantità</th>
+                           <th style="color:black; background:#eee;">Prezzo Unit.</th>
+                           <th style="color:black; background:#eee;">Subtotale</th>
+                         </tr>`;
+
+            prodotti.forEach(([prod, qta]) => {
+              const prezzoUnit = window.getPrezzo(prod);
+              const subtotale = prezzoUnit * qta;
+              totaleFamiglia += subtotale;
+              html += `<tr>
+                         <td style="text-align:left;">${prod}</td>
+                         <td style="text-align:center;">${qta}</td>
+                         <td style="text-align:center;">€ ${prezzoUnit}</td>
+                         <td style="text-align:center;">€ ${subtotale}</td>
+                       </tr>`;
+            });
+
+            totaleGenerale += totaleFamiglia;
+            html += `</table></div>
+                      <div style="text-align:right; margin-top:8px; font-weight:bold; color:#2e7d32;">Totale ${fam}: € ${totaleFamiglia}</div>
+                     </div>`;
+          });
+
+          html += `<h3 style="text-align:right; color:#2e7d32; border-top: 2px solid #2e7d32; padding-top:10px; margin-top:20px;">Totale Generale: € ${totaleGenerale}</h3>`;
+        }
+
+        document.getElementById("contenuto-stampa-famiglie").innerHTML = html;
+        document.getElementById("modal-riepilogo-famiglie").style.display = "flex";
+      } catch(e) {
+        mostraStatus("Errore caricamento riepilogo: " + e.message, true);
       }
     };
 
@@ -785,6 +906,20 @@
         <button onclick="preparaModificaDettaglio()" style="margin:0;">Applica Modifiche</button>
         <button class="btn-secondary" onclick="document.getElementById('modal-dettaglio-persone').style.display='none'" style="margin:0;">Chiudi</button>
     </div>
+  </div>
+</div>
+
+<!-- MODALE RIEPILOGO ORDINI PER FAMIGLIA (ADMIN) -->
+<div id="modal-riepilogo-famiglie" class="modal">
+  <div class="modal-content-box" style="max-width: 800px; width: 95%;">
+    <div class="no-print" style="display:flex; justify-content: space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0; color:#2e7d32;">Riepilogo Ordini per Famiglia</h3>
+      <div style="display:flex; gap:10px;">
+        <button onclick="window.print()" style="margin:0; width:auto;">🖨️ Stampa / Salva PDF</button>
+        <button class="btn-secondary" onclick="document.getElementById('modal-riepilogo-famiglie').style.display='none'" style="margin:0; width:auto;">Chiudi</button>
+      </div>
+    </div>
+    <div id="contenuto-stampa-famiglie"></div>
   </div>
 </div>
 
