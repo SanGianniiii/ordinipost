@@ -192,11 +192,77 @@
     .tab-btn.active:hover {
       background: #1b5e20;
     }
+
+    /* TABELLA ADMIN - ottimizzata per smartphone (colonne a misura di contenuto + scroll orizzontale) */
+    .admin-table { table-layout: auto; }
+    .admin-table th, .admin-table td {
+      white-space: nowrap;
+      padding: 0.6rem 0.5rem;
+      font-size: 0.9rem;
+    }
+    .admin-table input {
+      width: 72px;
+      min-width: 60px;
+      padding: 0.45rem;
+      font-size: 0.9rem;
+      margin-top: 0;
+    }
+    .admin-table button {
+      width: auto;
+      margin-top: 0;
+      padding: 0.5rem 0.7rem;
+      font-size: 0.85rem;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 600px) {
+      body { padding: 0.5rem; }
+      #admin-content { padding: 12px !important; }
+      .admin-table th, .admin-table td {
+        font-size: 0.78rem;
+        padding: 0.45rem 0.35rem;
+      }
+      .admin-table input {
+        width: 55px;
+        min-width: 48px;
+        font-size: 0.78rem;
+        padding: 0.35rem;
+      }
+      .admin-table button {
+        font-size: 0.75rem;
+        padding: 0.4rem 0.5rem;
+      }
+      .prod-input-group input { font-size: 0.9rem; }
+    }
   </style>
   <style media="print">
     body * { visibility: hidden; }
     #contenuto-stampa-famiglie, #contenuto-stampa-famiglie * { visibility: visible; }
-    #contenuto-stampa-famiglie { position: absolute; top: 0; left: 0; width: 100%; }
+
+    /* Il modal è "position: fixed" a schermo intero: in stampa questo genera pagine
+       duplicate/vuote. Lo riportiamo al flusso normale del documento. */
+    #modal-riepilogo-famiglie {
+      position: static !important;
+      display: block !important;
+      background: none !important;
+      width: auto !important;
+      height: auto !important;
+      overflow: visible !important;
+      z-index: auto !important;
+    }
+    #modal-riepilogo-famiglie .modal-content-box {
+      position: static !important;
+      width: 100% !important;
+      max-width: none !important;
+      max-height: none !important;
+      overflow: visible !important;
+      box-shadow: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    #contenuto-stampa-famiglie { position: static !important; width: 100%; }
+
+    .famiglia-stampa { page-break-inside: avoid; break-inside: avoid; }
     .no-print { display: none !important; }
   </style>
 
@@ -305,7 +371,7 @@
         const isWarning = !isEsaurito && p.giacenza <= 5;
         
         html += `<tr style="${isEsaurito ? 'background-color: #f9f9f9; color: #999;' : isWarning ? 'background-color: #fff3e0;' : ''}">
-                  <td class="col-prod">${p.tipo} ${isWarning ? '<span class="warning-badge">ULTIMI!</span>' : ''}</td>
+                  <td class="col-prod">${p.tipo}</td>
                   <td class="col-disp">${p.giacenza}</td>
                   <td class="col-qta">
                     ${!isEsaurito 
@@ -530,8 +596,10 @@
             });
             
             await setDoc(doc(db, "admin_tokens", token), { token: token, data: serverTimestamp() });
+            localStorage.setItem("notificheAbilitate", "1");
             mostraStatus("Dispositivo registrato per le Notifiche Push!");
           } else {
+            localStorage.setItem("notificheAbilitate", "1");
             mostraStatus("Service Worker pronto! Notifiche abilitate.");
           }
         } else {
@@ -548,8 +616,17 @@
     window.aggiornaVisibilitaBottoneNotifiche = function() {
       const btn = document.getElementById("btn-notifiche");
       if (!btn) return;
-      // Mostra il bottone SOLO se il permesso è "default" (non ancora deciso)
-      if (!("Notification" in window) || Notification.permission !== "default") {
+
+      const giaAbilitateSalvato = localStorage.getItem("notificheAbilitate") === "1";
+      const permessoConcesso = ("Notification" in window) && Notification.permission === "granted";
+      const permessoNegato = ("Notification" in window) && Notification.permission === "denied";
+
+      // Se il permesso risulta concesso, sincronizza sempre il flag salvato
+      if (permessoConcesso) localStorage.setItem("notificheAbilitate", "1");
+
+      // Nasconde il bottone se: già abilitato in passato su questo dispositivo,
+      // oppure il permesso è già stato concesso o negato dal browser
+      if (giaAbilitateSalvato || permessoConcesso || permessoNegato || !("Notification" in window)) {
         btn.style.display = "none";
       } else {
         btn.style.display = "block";
@@ -559,12 +636,24 @@
     // ================== ADMIN PANEL ==================
     
     window.entraPannelloAdmin = function() {
-      const password = prompt("Inserisci password admin:");
+      const input = document.getElementById("admin-password-input");
+      input.value = "";
+      document.getElementById("modal-admin-login").style.display = "flex";
+      setTimeout(() => input.focus(), 100);
+    };
+
+    window.chiudiModalAdminLogin = function() {
+      document.getElementById("modal-admin-login").style.display = "none";
+    };
+
+    window.confermaPasswordAdmin = function() {
+      const password = document.getElementById("admin-password-input").value;
       if (password === "admin123") { // CAMBIA QUESTA PASSWORD!
+        document.getElementById("modal-admin-login").style.display = "none";
         document.getElementById("main-content").style.display = "none";
         document.getElementById("admin-panel").style.display = "block";
         caricaProdottiAdmin();
-      } else if (password !== null) {
+      } else {
         mostraStatus("Password errata!", true);
       }
     };
@@ -588,7 +677,7 @@
         if (prodotti.length === 0) {
           html += '<p>Nessun prodotto trovato. Aggiungine uno qui sotto.</p>';
         } else {
-          html += '<div class="table-wrapper"><table><tr><th>Nome</th><th>Giacenza</th><th>Aggiungi/Togli scorta</th><th>Prezzo (€)</th><th>Ordini</th><th>Ordine Visualizzazione</th><th>Azioni</th></tr>';
+          html += '<div class="table-wrapper"><table class="admin-table"><tr><th>Nome</th><th>Giacenza</th><th>Aggiungi/Togli scorta</th><th>Prezzo (€)</th><th>Ordini</th><th>Ordine Vis.</th><th>Azioni</th></tr>';
           prodotti.forEach((p, idx) => {
             html += `<tr>
               <td>${p.tipo}</td>
@@ -730,7 +819,6 @@
         const nomiFamiglie = Object.keys(famiglie).sort((a, b) => a.localeCompare(b));
 
         let html = `<p style="text-align:center; color:#666; margin-bottom:20px;">Generato il ${new Date().toLocaleDateString('it-IT')}</p>`;
-        let totaleGenerale = 0;
 
         if (nomiFamiglie.length === 0) {
           html += "<p>Nessun ordine trovato.</p>";
@@ -739,36 +827,36 @@
             const prodotti = Object.entries(famiglie[fam]).filter(([_, qta]) => qta > 0);
             if (prodotti.length === 0) return;
 
-            let totaleFamiglia = 0;
-            html += `<div class="card-persona" style="page-break-inside: avoid;">
+            html += `<div class="card-persona famiglia-stampa">
                        <h4>👤 ${fam}</h4>
                        <div class="table-wrapper"><table style="width:100%;">
                          <tr style="font-size:0.85rem; background:#f0f0f0;">
                            <th style="text-align:left; color:black; background:#eee;">Prodotto</th>
                            <th style="color:black; background:#eee;">Quantità</th>
-                           <th style="color:black; background:#eee;">Prezzo Unit.</th>
-                           <th style="color:black; background:#eee;">Subtotale</th>
+                           <th style="color:black; background:#eee;">Consegnati</th>
                          </tr>`;
 
             prodotti.forEach(([prod, qta]) => {
-              const prezzoUnit = window.getPrezzo(prod);
-              const subtotale = prezzoUnit * qta;
-              totaleFamiglia += subtotale;
               html += `<tr>
                          <td style="text-align:left;">${prod}</td>
                          <td style="text-align:center;">${qta}</td>
-                         <td style="text-align:center;">€ ${prezzoUnit}</td>
-                         <td style="text-align:center;">€ ${subtotale}</td>
+                         <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
                        </tr>`;
             });
 
-            totaleGenerale += totaleFamiglia;
             html += `</table></div>
-                      <div style="text-align:right; margin-top:8px; font-weight:bold; color:#2e7d32;">Totale ${fam}: € ${totaleFamiglia}</div>
+                      <div style="margin-top:12px; font-size:0.9rem;">
+                        <div style="padding:5px 0; border-bottom:1px dotted #999;">Creme: </div>
+                        <div style="padding:5px 0; border-bottom:1px dotted #999;">Etichette vasetti: </div>
+                        <div style="padding:5px 0; border-bottom:1px dotted #999;">Etichette panettone: </div>
+                      </div>
+                      <div style="margin-top:12px; font-size:0.9rem; font-weight:bold; color:#2e7d32;">
+                        <div style="padding:5px 0; border-bottom:1px dotted #999;">Totale scatole: </div>
+                        <div style="padding:5px 0; border-bottom:1px dotted #999;">Totale laccetti: </div>
+                        <div style="padding:5px 0; border-bottom:1px dotted #999;">Totale adesivi: </div>
+                      </div>
                      </div>`;
           });
-
-          html += `<h3 style="text-align:right; color:#2e7d32; border-top: 2px solid #2e7d32; padding-top:10px; margin-top:20px;">Totale Generale: € ${totaleGenerale}</h3>`;
         }
 
         document.getElementById("contenuto-stampa-famiglie").innerHTML = html;
@@ -874,6 +962,20 @@
     Caricamento...
   </div>
   <button class="btn-secondary" onclick="esciPannelloAdmin()" style="width:100%;">← Torna Indietro</button>
+</div>
+
+<!-- MODALE LOGIN ADMIN -->
+<div id="modal-admin-login" class="modal">
+  <div class="modal-content-box" style="max-width: 340px;">
+    <h3 style="margin-top: 0; color:#2e7d32;">🔒 Accesso Admin</h3>
+    <label for="admin-password-input">Password:</label>
+    <input type="password" id="admin-password-input" placeholder="Inserisci password" autocomplete="off"
+           onkeydown="if(event.key==='Enter'){ event.preventDefault(); confermaPasswordAdmin(); }">
+    <div style="display: flex; gap: 10px; margin-top: 20px;">
+      <button onclick="confermaPasswordAdmin()" style="margin:0;">Entra</button>
+      <button onclick="chiudiModalAdminLogin()" class="btn-secondary" style="margin:0;">Annulla</button>
+    </div>
+  </div>
 </div>
 
 <!-- MODALE CONFERMA -->
