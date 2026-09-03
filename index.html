@@ -835,34 +835,44 @@
             const prodotti = Object.entries(famiglie[fam]).filter(([_, qta]) => qta > 0);
             if (prodotti.length === 0) return;
 
+            let totQuantita = 0;
+            let totSoldi = 0;
+
             html += `<div class="card-persona famiglia-stampa">
                        <h4>👤 ${fam}</h4>
                        <div class="table-wrapper"><table style="width:100%;">
-                         <tr style="font-size:0.85rem; background:#f0f0f0;">
+                         <tr style="font-size:0.72rem; background:#f0f0f0;">
                            <th style="text-align:left; color:black; background:#eee;">Prodotto</th>
                            <th style="color:black; background:#eee;">Quantità</th>
                            <th style="color:black; background:#eee;">Consegnati</th>
+                           <th style="color:black; background:#eee;">Etich. Panettone</th>
+                           <th style="color:black; background:#eee;">Creme</th>
+                           <th style="color:black; background:#eee;">Etich. Vasetti</th>
                          </tr>`;
 
             prodotti.forEach(([prod, qta]) => {
+              totQuantita += qta;
+              totSoldi += qta * window.getPrezzo(prod);
               html += `<tr>
                          <td style="text-align:left;">${prod}</td>
                          <td style="text-align:center;">${qta}</td>
                          <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
+                         <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
+                         <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
+                         <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
                        </tr>`;
             });
 
+            html += `<tr style="background:#e8f5e9; font-weight:bold;">
+                       <td style="text-align:left;">Totale</td>
+                       <td style="text-align:center;">${totQuantita}</td>
+                       <td style="text-align:center; font-weight:normal; font-size:0.68rem;">Totale scatole:</td>
+                       <td style="text-align:center; font-weight:normal; font-size:0.68rem;">Totale laccetti:</td>
+                       <td style="text-align:center; font-weight:normal; font-size:0.68rem;">Totale adesivi:</td>
+                       <td style="text-align:center;">€ ${totSoldi.toFixed(2)}</td>
+                     </tr>`;
+
             html += `</table></div>
-                      <div style="margin-top:12px; font-size:0.9rem;">
-                        <div style="padding:5px 0; border-bottom:1px dotted #999;">Creme: </div>
-                        <div style="padding:5px 0; border-bottom:1px dotted #999;">Etichette vasetti: </div>
-                        <div style="padding:5px 0; border-bottom:1px dotted #999;">Etichette panettone: </div>
-                      </div>
-                      <div style="margin-top:12px; font-size:0.9rem; font-weight:bold; color:#2e7d32;">
-                        <div style="padding:5px 0; border-bottom:1px dotted #999;">Totale scatole: </div>
-                        <div style="padding:5px 0; border-bottom:1px dotted #999;">Totale laccetti: </div>
-                        <div style="padding:5px 0; border-bottom:1px dotted #999;">Totale adesivi: </div>
-                      </div>
                      </div>`;
           });
         }
@@ -1071,36 +1081,50 @@
 
     const contieneNumeri = tokens.some(t => /^\d+$/.test(t));
 
-    // Nessun numero nella nota: tutta la quantità inserita va al nome scritto (invariato)
+    // Nessun numero nella nota: tutta la quantità inserita va al nome scritto (anche più parole)
     if (!contieneNumeri) {
       return { risultati: [{ quantita: qtaTotaleInserita, nota: capitalizzaNome(testo) }] };
     }
 
-    // Con i numeri il formato atteso è: <numero> <nome> <numero> <nome> ...
-    // Ogni numero deve essere seguito da UNA sola parola (il nome). Se compare del
-    // testo prima del primo numero, o due parole di seguito senza un numero in mezzo,
-    // la nota è ambigua e non sappiamo a chi assegnare la quantità.
+    // Con i numeri il formato è: <numero> <nome, anche di più parole> <numero> <nome> ...
+    // Solo il testo PRIMA del primo numero è ambiguo: non sappiamo a chi assegnarlo.
     if (!/^\d+$/.test(tokens[0])) {
-      return { errore: `Specifica un numero prima di "${capitalizzaNome(tokens[0])}" (es: "3 ${tokens[0]}").` };
+      const parolePrimaDelNumero = [];
+      let k = 0;
+      while (k < tokens.length && !/^\d+$/.test(tokens[k])) { parolePrimaDelNumero.push(tokens[k]); k++; }
+      const testoAmbiguo = parolePrimaDelNumero.join(" ");
+      return { errore: `Specifica un numero prima di "${capitalizzaNome(testoAmbiguo)}" (es: "3 ${testoAmbiguo}").` };
     }
 
     const risultati = [];
-    let i = 0;
-    while (i < tokens.length) {
-      const numTok = tokens[i];
-      if (!/^\d+$/.test(numTok)) {
-        return { errore: `Formato non chiaro vicino a "${tokens[i]}". Usa il formato "2 Luca 3 Carmelo".` };
+    let correnteQta = null;
+    let correnteNome = [];
+    let erroreNomeMancante = null;
+
+    const chiudiGruppo = () => {
+      if (correnteQta === null) return;
+      const nome = correnteNome.join(" ").trim();
+      if (!nome) {
+        erroreNomeMancante = `Manca il nome dopo il numero ${correnteQta}.`;
+        return;
       }
-      const nomeTok = tokens[i + 1];
-      if (!nomeTok || /^\d+$/.test(nomeTok)) {
-        return { errore: `Manca il nome dopo il numero ${numTok}.` };
+      risultati.push({ quantita: parseInt(correnteQta), nota: capitalizzaNome(nome) });
+    };
+
+    for (const token of tokens) {
+      if (erroreNomeMancante) break;
+      if (/^\d+$/.test(token)) {
+        chiudiGruppo();
+        correnteQta = token;
+        correnteNome = [];
+      } else {
+        correnteNome.push(token);
       }
-      const successivo = tokens[i + 2];
-      if (successivo && !/^\d+$/.test(successivo)) {
-        return { errore: `Specifica un numero per "${capitalizzaNome(successivo)}" (es: "2 ${nomeTok} 3 ${successivo}").` };
-      }
-      risultati.push({ quantita: parseInt(numTok), nota: capitalizzaNome(nomeTok) });
-      i += 2;
+    }
+    if (!erroreNomeMancante) chiudiGruppo();
+
+    if (erroreNomeMancante) {
+      return { errore: erroreNomeMancante };
     }
 
     const somma = risultati.reduce((acc, r) => acc + r.quantita, 0);
