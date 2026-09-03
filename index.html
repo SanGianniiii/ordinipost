@@ -589,17 +589,25 @@
       try {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
+          // Segna SUBITO il permesso come concesso: se qualcosa fallisce dopo
+          // (token, scrittura su Firestore, rete...) il bottone non deve ricomparire,
+          // perché il permesso del browser è comunque già stato dato.
+          localStorage.setItem("notificheAbilitate", "1");
+
           if (messaging) {
-            const token = await getToken(messaging, { 
-              vapidKey: "BJnvFe-amLgnp89cNI2k1XAmMw5cMvy9yzEMhIAGb9pwHlRCEUKQWmkKyNnBeo3TtDVgToa6Le2daJT4RzgX9u0",
-              serviceWorkerRegistration: swRegistration
-            });
-            
-            await setDoc(doc(db, "admin_tokens", token), { token: token, data: serverTimestamp() });
-            localStorage.setItem("notificheAbilitate", "1");
-            mostraStatus("Dispositivo registrato per le Notifiche Push!");
+            try {
+              const token = await getToken(messaging, { 
+                vapidKey: "BJnvFe-amLgnp89cNI2k1XAmMw5cMvy9yzEMhIAGb9pwHlRCEUKQWmkKyNnBeo3TtDVgToa6Le2daJT4RzgX9u0",
+                serviceWorkerRegistration: swRegistration
+              });
+
+              await setDoc(doc(db, "admin_tokens", token), { token: token, data: serverTimestamp() });
+              mostraStatus("Dispositivo registrato per le Notifiche Push!");
+            } catch (tokenErr) {
+              console.error('Errore registrazione token:', tokenErr);
+              mostraStatus("Notifiche abilitate, ma la registrazione del dispositivo non è riuscita: " + tokenErr.message, true);
+            }
           } else {
-            localStorage.setItem("notificheAbilitate", "1");
             mostraStatus("Service Worker pronto! Notifiche abilitate.");
           }
         } else {
@@ -1030,8 +1038,17 @@
   const fav = localStorage.getItem("famiglia");
   if (fav) document.getElementById("nome").value = fav;
 
-  // Mostra il bottone notifiche solo se il permesso non è ancora stato deciso
-  aggiornaVisibilitaBottoneNotifiche();
+  // IMPORTANTE: lo script Firebase in cima alla pagina è "type=module", quindi viene
+  // eseguito in differita (dopo il parsing di tutta la pagina). Questo script invece
+  // è uno script normale e verrebbe eseguito SUBITO, cioè PRIMA che il modulo abbia
+  // definito aggiornaVisibilitaBottoneNotifiche() - la chiamata fallirebbe in silenzio
+  // e il bottone notifiche non verrebbe mai nascosto. Aspettiamo quindi DOMContentLoaded,
+  // che scatta solo dopo che anche il modulo ha finito di essere eseguito.
+  document.addEventListener('DOMContentLoaded', function() {
+    if (window.aggiornaVisibilitaBottoneNotifiche) {
+      window.aggiornaVisibilitaBottoneNotifiche();
+    }
+  });
 
   // Funzione intelligente per leggere quantità e nomi multipli dalla nota
   function capitalizzaNome(str) {
@@ -1042,45 +1059,56 @@
       .join(" ");
   }
 
-  function analizzaNotaEQuantita(qtaTotaleDefault, notaTesto) {
-    const testo = notaTesto.trim().replace(/,/g, ' ');
-    const tokens = testo.split(/\s+/);
-    
+  function analizzaNotaEQuantita(qtaTotaleInserita, notaTesto) {
+    let testo = notaTesto.trim().replace(/,/g, ' ');
+    // Separa i numeri "attaccati" al nome, es: "2luca" -> "2 luca"
+    testo = testo.replace(/(\d+)(?=[^\s\d])/g, '$1 ');
+    const tokens = testo.split(/\s+/).filter(t => t !== "");
+
+    if (tokens.length === 0) {
+      return { errore: "Inserisci un nome nella nota." };
+    }
+
+    const contieneNumeri = tokens.some(t => /^\d+$/.test(t));
+
+    // Nessun numero nella nota: tutta la quantità inserita va al nome scritto (invariato)
+    if (!contieneNumeri) {
+      return { risultati: [{ quantita: qtaTotaleInserita, nota: capitalizzaNome(testo) }] };
+    }
+
+    // Con i numeri il formato atteso è: <numero> <nome> <numero> <nome> ...
+    // Ogni numero deve essere seguito da UNA sola parola (il nome). Se compare del
+    // testo prima del primo numero, o due parole di seguito senza un numero in mezzo,
+    // la nota è ambigua e non sappiamo a chi assegnare la quantità.
+    if (!/^\d+$/.test(tokens[0])) {
+      return { errore: `Specifica un numero prima di "${capitalizzaNome(tokens[0])}" (es: "3 ${tokens[0]}").` };
+    }
+
     const risultati = [];
-    let correnteQta = null;
-    let correnteNome = [];
-
-    for (let i = 0; i < tokens.length; i++) {
-      const token = tokens[i];
-      if (!isNaN(token) && token !== "") {
-        if (correnteQta !== null) {
-          risultati.push({
-            quantita: parseInt(correnteQta),
-            nota: capitalizzaNome(correnteNome.join(" "))
-          });
-          correnteNome = [];
-        }
-        correnteQta = token;
-      } else {
-        correnteNome.push(token);
+    let i = 0;
+    while (i < tokens.length) {
+      const numTok = tokens[i];
+      if (!/^\d+$/.test(numTok)) {
+        return { errore: `Formato non chiaro vicino a "${tokens[i]}". Usa il formato "2 Luca 3 Carmelo".` };
       }
+      const nomeTok = tokens[i + 1];
+      if (!nomeTok || /^\d+$/.test(nomeTok)) {
+        return { errore: `Manca il nome dopo il numero ${numTok}.` };
+      }
+      const successivo = tokens[i + 2];
+      if (successivo && !/^\d+$/.test(successivo)) {
+        return { errore: `Specifica un numero per "${capitalizzaNome(successivo)}" (es: "2 ${nomeTok} 3 ${successivo}").` };
+      }
+      risultati.push({ quantita: parseInt(numTok), nota: capitalizzaNome(nomeTok) });
+      i += 2;
     }
 
-    if (correnteQta !== null) {
-      risultati.push({
-        quantita: parseInt(correnteQta),
-        nota: capitalizzaNome(correnteNome.join(" "))
-      });
+    const somma = risultati.reduce((acc, r) => acc + r.quantita, 0);
+    if (somma !== qtaTotaleInserita) {
+      return { errore: `La somma nella nota (${somma}) non coincide con la quantità inserita (${qtaTotaleInserita}). Correggi uno dei due valori.` };
     }
 
-    if (risultati.length === 0) {
-      return [{
-        quantita: qtaTotaleDefault,
-        nota: capitalizzaNome(notaTesto)
-      }];
-    }
-
-    return risultati;
+    return { risultati };
   }
 
   function confermaOrdine() {
@@ -1098,21 +1126,27 @@
       const pNome = input.parentElement.parentElement.querySelector(".col-prod").innerText;
 
       if (qDefault > 0 || nTesto !== "") {
+        if (qDefault <= 0) {
+          mostraStatus(`Inserisci la quantità per ${pNome}.`, true);
+          erroreInput = true;
+          return;
+        }
         if (!nTesto) {
           mostraStatus(`Inserisci una nota (Chi?) per ${pNome}`, true);
           erroreInput = true;
           return;
         }
 
-        const sottordini = analizzaNotaEQuantita(qDefault, nTesto);
+        const esito = analizzaNotaEQuantita(qDefault, nTesto);
 
-        for (const sub of sottordini) {
-          if (sub.quantita > 0) {
-            if (!sub.nota) {
-              mostraStatus(`Specifica il nome per la quantità ${sub.quantita} in ${pNome}`, true);
-              erroreInput = true;
-              return;
-            }
+        if (esito.errore) {
+          mostraStatus(`${pNome}: ${esito.errore}`, true);
+          erroreInput = true;
+          return;
+        }
+
+        for (const sub of esito.risultati) {
+          if (sub.quantita > 0 && sub.nota) {
             ordine.push({ 
               nome: nomeFamiglia, 
               prodottoId: id, 
