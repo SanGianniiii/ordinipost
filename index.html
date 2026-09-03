@@ -1,3 +1,32 @@
+
+
+Ha pensato per 24s
+Ha pensato per 24s
+Trovato — è un bug più serio, nella funzione che scrive l'ordine su Firestore. Quando la quantità viene divisa tra più persone sullo stesso prodotto (es. 8 Luca + 2 Maria), il codice genera due operazioni distinte che leggono e aggiornano due volte lo stesso documento prodotto dentro la stessa transazione. Firestore, in questi casi, tiene solo l'ultima scrittura fatta su quel documento e scarta le precedenti — quindi la giacenza viene decurtata solo dell'ultima persona elaborata (Maria: -2), ignorando del tutto la prima (Luca: -8).
+
+
+Eseguiti 2 comandi
+Eseguiti 2 comandi
+Ora sostituisco l'intero blocco della transazione, raggruppando le richieste per prodotto prima di leggere/scrivere, così ogni prodotto viene letto e aggiornato una sola volta con il totale corretto, mentre ogni persona ottiene comunque la propria prenotazione registrata separatamente:
+
+
+Raggruppa le richieste per prodotto prima di leggere/scrivere sulla giacenza, evitando che scritture multiple sullo stesso prodotto nella stessa transazione si sovrascrivano a vicenda
+Raggruppa le richieste per prodotto prima di leggere/scrivere sulla giacenza, evitando che scritture multiple sullo stesso prodotto nella stessa transazione si sovrascrivano a vicenda
+
+Raggruppa le richieste per prodotto prima di leggere/scrivere sulla giacenza, evitando che scritture multiple sullo stesso prodotto nella stessa transazione si sovrascrivano a vicenda
+index.html
++74
+-55
+
+Hai esaurito i messaggi gratuiti fino alle 07:00
+
+
+
+
+Claude è un'AI e può commettere errori. Verifica le risposte.
+
+
+Index · HTML
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -25,7 +54,7 @@
     }
     header img { width: 60px; height: 60px; object-fit: contain; }
     h2 { margin: 0; font-size: 1.5rem; color: #2e7d32; }
-
+ 
     select, input[type="number"], input[type="text"], input[type="password"], button {
       width: 100%;
       padding: 0.8rem;
@@ -35,9 +64,9 @@
       border: 1px solid #a5d6a7;
       box-sizing: border-box;
     }
-
+ 
     label { font-weight: bold; color: #2e7d32; display: block; margin-top: 1rem; }
-
+ 
     .table-wrapper {
       width: 100%;
       overflow-x: auto;
@@ -46,9 +75,9 @@
       background-color: white;
       box-shadow: 0 2px 8px rgba(0, 128, 0, 0.15);
     }
-
+ 
     table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-
+ 
     th, td {
       padding: 0.8rem 0.4rem;
       text-align: center;
@@ -56,26 +85,26 @@
       word-wrap: break-word;
       font-size: 0.9rem;
     }
-
+ 
     th { background-color: #a5d6a7; color: white; font-weight: 600; }
-
+ 
     .col-prod { width: 30%; text-align: left; padding-left: 10px; color: #2e7d32; font-weight: bold; }
     .col-disp { width: 15%; }
     .col-qta { width: 20%; }
     .col-nota { width: 35%; }
-
+ 
     .modal {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0,0,0,0.7); display: none; justify-content: center;
       align-items: center; z-index: 30000; overflow-y: auto;
     }
-
+ 
     .modal-content-box {
       background: white; padding: 20px; border-radius: 12px;
       width: 90%; max-width: 500px; max-height: 85vh; overflow-y: auto;
       box-shadow: 0 10px 25px rgba(0,128,0,0.2); margin: 20px auto;
     }
-
+ 
     #status-message {
       position: fixed; top: 50%; left: 50%;
       transform: translate(-50%, -50%); padding: 20px 40px;
@@ -83,20 +112,20 @@
       font-size: 1.2rem; text-align: center; z-index: 60000;
       display: none; box-shadow: 0 10px 30px rgba(0,128,0,0.3);
     }
-
+ 
     .status-success { background-color: #2e7d32; }
     .status-error { background-color: #d32f2f; }
-
+ 
     .card-persona { border: 1px solid #c8e6c9; border-radius: 10px; padding: 10px; margin-bottom: 15px; background-color: #fafafa; }
     .card-persona h4 { margin: 0 0 10px 0; color: #2e7d32; border-bottom: 2px solid #2e7d32; padding-bottom: 5px; }
-
+ 
     button { background-color: #2e7d32; color: white; border: none; font-weight: bold; margin-top: 1rem; cursor: pointer; transition: background 0.3s; }
     button:hover { background-color: #1b5e20; }
     .btn-secondary { background-color: #6c757d; }
     .btn-dark { background-color: #1b5e20; }
     .btn-warning { background-color: #ff9800; }
     .admin-btn { background-color: transparent; border: 1px solid #2e7d32; color: #2e7d32; margin-top: 1.5rem; }
-
+ 
     /* STILI ADMIN PANEL */
     .admin-section { display: none; }
     .admin-section.active { display: block; }
@@ -116,7 +145,7 @@
     }
     .sortable-list li:active { cursor: grabbing; }
     .sortable-list li.drag-over { background: #e8f5e9; }
-
+ 
     .prod-input-group {
       background: #f5f5f5;
       padding: 12px;
@@ -124,25 +153,25 @@
       border-radius: 6px;
       border: 1px solid #ccc;
     }
-
+ 
     .prod-input-group label {
       margin-top: 0;
       font-size: 0.95rem;
     }
-
+ 
     .prod-input-group input {
       margin-top: 0.3rem;
     }
-
+ 
     .flex-row {
       display: flex;
       gap: 10px;
     }
-
+ 
     .flex-row > * {
       flex: 1;
     }
-
+ 
     .warning-badge {
       background: #ff9800;
       color: white;
@@ -151,7 +180,7 @@
       font-size: 0.8rem;
       font-weight: bold;
     }
-
+ 
     .danger-badge {
       background: #d32f2f;
       color: white;
@@ -160,14 +189,14 @@
       font-size: 0.8rem;
       font-weight: bold;
     }
-
+ 
     .tabs {
       display: flex;
       gap: 10px;
       margin-bottom: 20px;
       flex-wrap: wrap;
     }
-
+ 
     .tab-btn {
       padding: 10px 20px;
       border: 2px solid #2e7d32;
@@ -179,20 +208,20 @@
       transition: all 0.3s;
       margin-top: 0;
     }
-
+ 
     .tab-btn.active {
       background: #2e7d32;
       color: white;
     }
-
+ 
     .tab-btn:hover {
       background: #e8f5e9;
     }
-
+ 
     .tab-btn.active:hover {
       background: #1b5e20;
     }
-
+ 
     /* TABELLA ADMIN - ottimizzata per smartphone (colonne a misura di contenuto + scroll orizzontale) */
     .admin-table { table-layout: auto; }
     .admin-table th, .admin-table td {
@@ -214,7 +243,7 @@
       font-size: 0.85rem;
       white-space: nowrap;
     }
-
+ 
     @media (max-width: 600px) {
       body { padding: 0.5rem; }
       #admin-content { padding: 12px !important; }
@@ -238,7 +267,7 @@
   <style media="print">
     body * { visibility: hidden; }
     #contenuto-stampa-famiglie, #contenuto-stampa-famiglie * { visibility: visible; }
-
+ 
     /* Il modal è "position: fixed" a schermo intero: in stampa questo genera pagine
        duplicate/vuote. Lo riportiamo al flusso normale del documento. */
     #modal-riepilogo-famiglie {
@@ -261,11 +290,11 @@
       padding: 0 !important;
     }
     #contenuto-stampa-famiglie { position: static !important; width: 100%; }
-
+ 
     .famiglia-stampa { page-break-inside: avoid; break-inside: avoid; }
     .no-print { display: none !important; }
   </style>
-
+ 
   <!-- SDK FIREBASE v10 MODULARE -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -273,7 +302,7 @@
       getFirestore, collection, onSnapshot, doc, getDoc, runTransaction, getDocs, query, where, serverTimestamp, setDoc, deleteDoc
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
-
+ 
     // ⚙️ CONFIGURAZIONE FIREBASE
     const firebaseConfig = {
       apiKey: "AIzaSyAY8l_GGRWPWi5BFpirUMXd2JN0MVZZpYM",
@@ -284,15 +313,15 @@
       appId: "1:363847145933:web:d1590848833eb147590c84",
       measurementId: "G-V50YGPTVM4"
     };
-
+ 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-
+ 
     // ⚙️ SETUP SERVICE WORKER E NOTIFICHE AL CARICAMENTO
     let messaging = null;
     let serviceWorkerReady = false;
     let swRegistration = null;
-
+ 
     async function setupServiceWorker() {
       try {
         if (!('serviceWorker' in navigator)) {
@@ -324,12 +353,12 @@
         console.error('Errore registrazione Service Worker:', e);
       }
     }
-
+ 
     // Chiama al caricamento pagina
     window.addEventListener('load', setupServiceWorker);
-
+ 
     let prodottiGlobal = [];
-
+ 
     // Mostra un messaggio stilizzato
     window.mostraStatus = function(messaggio, isError = false) {
       const statusBox = document.getElementById("status-message");
@@ -338,13 +367,13 @@
       statusBox.style.display = "block";
       setTimeout(() => statusBox.style.display = "none", isError ? 3500 : 2500);
     };
-
+ 
     // Prezzo letto direttamente dal prodotto nel database (campo "prezzo"), non più da parole chiave
     window.getPrezzo = (nomeProdotto) => {
       const pObj = prodottiGlobal.find(x => x.tipo === nomeProdotto);
       return pObj && pObj.prezzo ? Number(pObj.prezzo) : 0;
     };
-
+ 
     // ⭐ ASCOLTO ORDINE PERSONALIZZATO DAI PRODOTTI
     onSnapshot(collection(db, "prodotti"), (snapshot) => {
       prodottiGlobal = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -360,7 +389,7 @@
       }
       renderizzaTabellaPrincipale();
     });
-
+ 
     function renderizzaTabellaPrincipale() {
       let html = `<div class="table-wrapper"><table><thead><tr><th class="col-prod">Prodotto</th><th class="col-disp">Disp.</th><th class="col-qta">Qtà</th><th class="col-nota">Nota</th></tr></thead><tbody>`;
       
@@ -388,7 +417,7 @@
       html += `</tbody></table></div>`;
       document.getElementById("lista-prodotti").innerHTML = html;
     }
-
+ 
     // SISTEMA DI NOTIFICHE MIGLIORATO
     // Controlla se il cambio di giacenza (vecchia -> nuova) deve generare una notifica.
     // Le soglie 25 e 15 avvisano solo quando vengono "attraversate" scendendo.
@@ -397,7 +426,7 @@
     // sempre i valori reali prima/dopo).
     function calcolaNotificaGiacenza(nomeProdotto, vecchia, nuova) {
       if (nuova >= vecchia) return null; // nessuna diminuzione, nessuna notifica
-
+ 
       if (nuova <= 0) {
         return { titolo: `Prodotto Esaurito: ${nomeProdotto}`, corpo: `${nomeProdotto} non è più disponibile!` };
       }
@@ -412,7 +441,7 @@
       }
       return null;
     }
-
+ 
     // Funzione per inviare notifiche via Firebase Cloud Messaging
     window.inviaPushNotifica = async function(titolo, corpo) {
       try {
@@ -431,68 +460,87 @@
         console.error('Errore invio notifica:', e);
       }
     };
-
+ 
     // 2. CONFERMA E SCRITTURA ORDINE TRAMITE TRANSAZIONE ATOMICA (CORRETTA)
     window.eseguiOperazioneBackend = async function() {
       if (!window.payloadTemporaneo || window.payloadTemporaneo.length === 0) return;
       document.getElementById("modal").style.display = "none";
-
+ 
       try {
         await runTransaction(db, async (transaction) => {
-          
-          // FASE 1: Esegui TUTTI i READ (Letture) e controlli prima
-          const operazioniPronte = [];
-
+ 
+          // FASE 1: raggruppa le richieste per prodotto. Se più persone ordinano
+          // lo stesso prodotto nello stesso ordine (es. 8 Luca + 2 Maria), il
+          // documento "prodotti/{id}" va letto e aggiornato UNA SOLA VOLTA con il
+          // totale complessivo: scritture multiple sullo stesso documento nella
+          // stessa transazione si sovrascriverebbero a vicenda (vince solo l'ultima),
+          // causando uno scarico giacenza sbagliato.
+          const richiestePerProdotto = new Map();
           for (const item of window.payloadTemporaneo) {
-            const prodRef = doc(db, "prodotti", item.prodottoId);
+            if (!richiestePerProdotto.has(item.prodottoId)) {
+              richiestePerProdotto.set(item.prodottoId, { totale: 0, items: [] });
+            }
+            const entry = richiestePerProdotto.get(item.prodottoId);
+            entry.totale += item.quantita;
+            entry.items.push(item);
+          }
+ 
+          // FASE 2: Esegui TUTTI i READ (Letture) e controlli prima, una volta per prodotto
+          const operazioniPronte = [];
+ 
+          for (const [prodottoId, richiesta] of richiestePerProdotto) {
+            const prodRef = doc(db, "prodotti", prodottoId);
             const prodDoc = await transaction.get(prodRef);
-
-            if (!prodDoc.exists()) throw new Error(`Prodotto ${item.prodotto} non trovato!`);
+ 
+            if (!prodDoc.exists()) throw new Error(`Prodotto ${richiesta.items[0].prodotto} non trovato!`);
             const datiProd = prodDoc.data();
             const giacenzaAttuale = datiProd.giacenza;
-
-            if (giacenzaAttuale < item.quantita) {
-              throw new Error(`Disponibilità insufficiente per ${item.prodotto}! Rimasti: ${giacenzaAttuale}`);
+ 
+            if (giacenzaAttuale < richiesta.totale) {
+              throw new Error(`Disponibilità insufficiente per ${richiesta.items[0].prodotto}! Richiesti: ${richiesta.totale}, rimasti: ${giacenzaAttuale}`);
             }
-
+ 
             operazioniPronte.push({
               prodRef,
               datiProd,
-              item,
-              giacenzaAttuale
+              giacenzaAttuale,
+              totaleRichiesto: richiesta.totale,
+              items: richiesta.items
             });
           }
-
-          // FASE 2: Esegui TUTTI i WRITE (Scritture) dopo le letture
+ 
+          // FASE 3: Esegui TUTTI i WRITE (Scritture) dopo le letture
           const notificheDaInviare = [];
           for (const op of operazioniPronte) {
-            const nuovaGiacenza = op.giacenzaAttuale - op.item.quantita;
-
-            // Aggiorna giacenza
+            const nuovaGiacenza = op.giacenzaAttuale - op.totaleRichiesto;
+ 
+            // Aggiorna giacenza UNA SOLA VOLTA per prodotto, con il totale di tutte le persone
             transaction.update(op.prodRef, {
               giacenza: nuovaGiacenza,
-              ordinati: (op.datiProd.ordinati || 0) + op.item.quantita
+              ordinati: (op.datiProd.ordinati || 0) + op.totaleRichiesto
             });
-
-            const notif = calcolaNotificaGiacenza(op.item.prodotto, op.giacenzaAttuale, nuovaGiacenza);
+ 
+            const notif = calcolaNotificaGiacenza(op.items[0].prodotto, op.giacenzaAttuale, nuovaGiacenza);
             if (notif) notificheDaInviare.push(notif);
-
-            // Registra prenotazione
-            const prenRef = doc(collection(db, "prenotazioni"));
-            transaction.set(prenRef, {
-              nome: op.item.nome,
-              prodotto: op.item.prodotto,
-              prodottoId: op.item.prodottoId,
-              quantita: op.item.quantita,
-              nota: op.item.nota,
-              data: serverTimestamp()
-            });
+ 
+            // Registra una prenotazione per OGNI persona, con la sua quantità e nota
+            for (const item of op.items) {
+              const prenRef = doc(collection(db, "prenotazioni"));
+              transaction.set(prenRef, {
+                nome: item.nome,
+                prodotto: item.prodotto,
+                prodottoId: item.prodottoId,
+                quantita: item.quantita,
+                nota: item.nota,
+                data: serverTimestamp()
+              });
+            }
           }
-
+ 
           // Salva le notifiche da inviare fuori dalla transazione (non si può fare fetch dentro)
           window._notificheInSospeso = notificheDaInviare;
         });
-
+ 
         // Reset input form
         document.querySelectorAll('input[type="number"], input[type="text"]').forEach(i => i.value = "");
         
@@ -501,32 +549,32 @@
         // Invia le notifiche di soglia calcolate durante la transazione
         (window._notificheInSospeso || []).forEach(n => inviaPushNotifica(n.titolo, n.corpo));
         window._notificheInSospeso = [];
-
+ 
       } catch (e) {
         mostraStatus("ERRORE: " + e.message, true);
       }
     };
-
+ 
     // 3. MOSTRAMO IL RIEPILOGO DELLA FAMIGLIA
     window.mostraRiepilogoPrenotazioni = async function() {
       const fam = document.getElementById("nome").value;
       if (!fam) return mostraStatus("Seleziona una famiglia!", true);
-
+ 
       const q = query(collection(db, "prenotazioni"), where("nome", "==", fam));
       const snapshot = await getDocs(q);
-
+ 
       const riepilogoMap = {};
       let totalePezzi = 0;
       let totaleEuro = 0;
-
+ 
       snapshot.forEach((doc) => {
         const d = doc.data();
         riepilogoMap[d.prodotto] = (riepilogoMap[d.prodotto] || 0) + d.quantita;
       });
-
+ 
       let html = `<div style="background:#e8f5e9; padding:10px; border-radius:8px; margin-bottom:15px; border: 1px solid #a5d6a7;"><strong>${fam}</strong></div>`;
       html += `<div class="table-wrapper"><table style="width:100%; font-size:1.1rem;"><tr style="background:#2e7d32; color:white;"><th style="text-align:left; padding:12px;">Prodotto</th><th style="width:30%;">Qtà</th></tr>`;
-
+ 
       for (const [prod, qta] of Object.entries(riepilogoMap)) {
         if (qta > 0) {
           totalePezzi += qta;
@@ -534,21 +582,21 @@
           html += `<tr><td style="text-align:left; padding:12px;">${prod}</td><td style="font-weight:bold; font-size:1.3rem;">${qta}</td></tr>`;
         }
       }
-
+ 
       html += `</table></div><h3 style="text-align:right; color:#2e7d32;">Totale: € ${totaleEuro}</h3>
                <button class="btn-dark" onclick="mostraDettaglioPerPersone()">Dettaglio per Singola Persona</button>`;
-
+ 
       document.getElementById("contenuto-riepilogo").innerHTML = html;
       document.getElementById("modal-riepilogo").style.display = "flex";
     };
-
+ 
     // 4. DETTAGLIO PER PERSONA CON VARIAZIONE (+ / -)
     window.mostraDettaglioPerPersone = async function() {
       document.getElementById("modal-riepilogo").style.display = "none";
       const fam = document.getElementById("nome").value;
       const q = query(collection(db, "prenotazioni"), where("nome", "==", fam));
       const snapshot = await getDocs(q);
-
+ 
       const personeMap = {};
       snapshot.forEach(doc => {
         const d = doc.data();
@@ -559,12 +607,12 @@
         }
         personeMap[chiave].prodotti[d.prodotto] = (personeMap[chiave].prodotti[d.prodotto] || 0) + d.quantita;
       });
-
+ 
       let html = "";
       for (const { label: persona, prodotti } of Object.values(personeMap)) {
         const prodottiConGiacenza = Object.entries(prodotti).filter(([_, qta]) => qta > 0);
         if (prodottiConGiacenza.length === 0) continue;
-
+ 
         let totPers = 0;
         html += `<div class="card-persona"><h4>👤 ${persona}</h4><div class="table-wrapper"><table style="width:100%;"><tr style="font-size:0.8rem; background:#f0f0f0;"><th style="color:black; background:#eee; text-align:left;">Prodotto</th><th style="color:black; background:#eee; width:15%;">Att.</th><th style="color:green; background:#eee; width:20%;">+</th><th style="color:red; background:#eee; width:20%;">-</th></tr>`;
         
@@ -578,11 +626,11 @@
         }
         html += `</table></div><div style="text-align:right; margin-top:10px; font-weight:bold; color:#2e7d32;">Parziale: € ${totPers}</div></div>`;
       }
-
+ 
       document.getElementById("contenuto-dettaglio").innerHTML = html || "Nessun dato trovato per questa famiglia.";
       document.getElementById("modal-dettaglio-persone").style.display = "flex";
     };
-
+ 
     // 5. ATTIVAZIONE NOTIFICHE PUSH DISPOSITIVO
     window.attivaNotifichePush = async function() {
       if(!messaging && !serviceWorkerReady) return mostraStatus("Le notifiche non sono supportate su questo browser.", true);
@@ -593,14 +641,14 @@
           // (token, scrittura su Firestore, rete...) il bottone non deve ricomparire,
           // perché il permesso del browser è comunque già stato dato.
           localStorage.setItem("notificheAbilitate", "1");
-
+ 
           if (messaging) {
             try {
               const token = await getToken(messaging, { 
                 vapidKey: "BJnvFe-amLgnp89cNI2k1XAmMw5cMvy9yzEMhIAGb9pwHlRCEUKQWmkKyNnBeo3TtDVgToa6Le2daJT4RzgX9u0",
                 serviceWorkerRegistration: swRegistration
               });
-
+ 
               await setDoc(doc(db, "admin_tokens", token), { token: token, data: serverTimestamp() });
               mostraStatus("Dispositivo registrato per le Notifiche Push!");
             } catch (tokenErr) {
@@ -616,22 +664,22 @@
       } catch (e) { 
         mostraStatus("Errore durante l'attivazione notifiche: " + e.message, true); 
       }
-
+ 
       aggiornaVisibilitaBottoneNotifiche();
     };
-
+ 
     // Nasconde il bottone se il permesso è già stato concesso o negato in precedenza
     window.aggiornaVisibilitaBottoneNotifiche = function() {
       const btn = document.getElementById("btn-notifiche");
       if (!btn) return;
-
+ 
       const giaAbilitateSalvato = localStorage.getItem("notificheAbilitate") === "1";
       const permessoConcesso = ("Notification" in window) && Notification.permission === "granted";
       const permessoNegato = ("Notification" in window) && Notification.permission === "denied";
-
+ 
       // Se il permesso risulta concesso, sincronizza sempre il flag salvato
       if (permessoConcesso) localStorage.setItem("notificheAbilitate", "1");
-
+ 
       // Nasconde il bottone se: già abilitato in passato su questo dispositivo,
       // oppure il permesso è già stato concesso o negato dal browser
       if (giaAbilitateSalvato || permessoConcesso || permessoNegato || !("Notification" in window)) {
@@ -640,7 +688,7 @@
         btn.style.display = "block";
       }
     };
-
+ 
     // ================== ADMIN PANEL ==================
     
     window.entraPannelloAdmin = function() {
@@ -649,11 +697,11 @@
       document.getElementById("modal-admin-login").style.display = "flex";
       setTimeout(() => input.focus(), 100);
     };
-
+ 
     window.chiudiModalAdminLogin = function() {
       document.getElementById("modal-admin-login").style.display = "none";
     };
-
+ 
     window.confermaPasswordAdmin = function() {
       const password = document.getElementById("admin-password-input").value;
       if (password === "admin123") { // CAMBIA QUESTA PASSWORD!
@@ -665,12 +713,12 @@
         mostraStatus("Password errata!", true);
       }
     };
-
+ 
     window.esciPannelloAdmin = function() {
       document.getElementById("main-content").style.display = "block";
       document.getElementById("admin-panel").style.display = "none";
     };
-
+ 
     window.caricaProdottiAdmin = async function() {
       try {
         const docs = await getDocs(collection(db, "prodotti"));
@@ -680,7 +728,7 @@
             prodotti.push({ id: d.id, ...d.data() });
           }
         });
-
+ 
         let html = '<h3>Prodotti Attuali</h3>';
         if (prodotti.length === 0) {
           html += '<p>Nessun prodotto trovato. Aggiungine uno qui sotto.</p>';
@@ -702,7 +750,7 @@
           });
           html += '</table></div>';
         }
-
+ 
         html += `<h3 style="margin-top:2rem;">Aggiungi Nuovo Prodotto</h3>
           <div class="prod-input-group">
             <label>Nome Prodotto:</label>
@@ -713,32 +761,32 @@
             <input type="number" id="new-prod-prezzo" min="0" step="0.5" value="0">
             <button onclick="aggiungiProdottoAdmin()" style="width:auto; margin-top:1rem;">Aggiungi Prodotto</button>
           </div>`;
-
+ 
         html += `<h3 style="margin-top:2rem;">Salva Ordine Visualizzazione e Prezzi</h3>
           <p>Modifica i numeri nella tabella sopra (ordine e/o prezzo) e clicca qui per salvare:</p>
           <button onclick="salvaOrdineAdmin()" class="btn-dark" style="width:auto; margin-top:1rem;">💾 Salva Ordine e Prezzi</button>`;
-
+ 
         html += `<h3 style="margin-top:2rem;">Riepilogo Ordini per Famiglia</h3>
           <p>Vedi tutti gli ordini raggruppati per famiglia/padrino, con prodotti, quantità e totale — pronto per la stampa in PDF.</p>
           <button onclick="mostraRiepilogoFamiglieAdmin()" class="btn-dark" style="width:auto; margin-top:1rem;">📋 Apri Riepilogo per Famiglia</button>`;
-
+ 
         html += `<h3 style="margin-top:2rem;">Reset Completo</h3>
           <p style="color:#d32f2f; font-weight:bold;">⚠️ Questa azione eliminerà TUTTI i dati (prodotti e prenotazioni)!</p>
           <button onclick="resetCompletoAdmin()" class="btn-warning" style="width:auto; margin-top:1rem;">🗑️ Reset Completo</button>`;
-
+ 
         document.getElementById("admin-content").innerHTML = html;
       } catch(e) {
         mostraStatus("Errore caricamento admin: " + e.message, true);
       }
     };
-
+ 
     window.aggiungiProdottoAdmin = async function() {
       const nome = document.getElementById("new-prod-name").value.trim();
       const qta = parseInt(document.getElementById("new-prod-qta").value) || 0;
       const prezzo = parseFloat(document.getElementById("new-prod-prezzo").value) || 0;
-
+ 
       if (!nome) return mostraStatus("Inserisci il nome del prodotto!", true);
-
+ 
       try {
         let newId = nome
           .trim()
@@ -747,13 +795,13 @@
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/^-+|-+$/g, "");
         if (!newId) newId = `prod_${Date.now()}`;
-
+ 
         // Se esiste già un prodotto con questo ID, aggiunge un suffisso per evitare conflitti
         const esistente = await getDoc(doc(db, "prodotti", newId));
         if (esistente.exists()) {
           newId = `${newId}-${Date.now()}`;
         }
-
+ 
         await setDoc(doc(db, "prodotti", newId), {
           tipo: nome,
           giacenza: qta,
@@ -769,35 +817,35 @@
         mostraStatus("Errore: " + e.message, true);
       }
     };
-
+ 
     window.aggiungiScortaAdmin = async function(id, nomeProdotto) {
       const input = document.getElementById(`scorta-${id}`);
       const delta = parseInt(input.value) || 0;
       if (delta === 0) return mostraStatus("Inserisci una quantità diversa da zero (es: 20 per aggiungere, -5 per togliere).", true);
-
+ 
       try {
         const ref = doc(db, "prodotti", id);
         const snap = await getDoc(ref);
         if (!snap.exists()) return mostraStatus("Prodotto non trovato.", true);
-
+ 
         const vecchia = snap.data().giacenza || 0;
         const nuova = vecchia + delta;
         if (nuova < 0) return mostraStatus(`Non puoi togliere ${Math.abs(delta)}: ci sono solo ${vecchia} pezzi.`, true);
-
+ 
         await setDoc(ref, { giacenza: nuova }, { merge: true });
         input.value = "";
         mostraStatus(`Giacenza aggiornata: ${vecchia} → ${nuova}`);
-
+ 
         // Se la modifica è una diminuzione che attraversa una soglia, notifica comunque
         const notif = calcolaNotificaGiacenza(nomeProdotto, vecchia, nuova);
         if (notif) inviaPushNotifica(notif.titolo, notif.corpo);
-
+ 
         caricaProdottiAdmin();
       } catch(e) {
         mostraStatus("Errore: " + e.message, true);
       }
     };
-
+ 
     window.eliminaProdottoAdmin = async function(id) {
       if (confirm("Sei sicuro di voler eliminare questo prodotto?")) {
         try {
@@ -809,12 +857,12 @@
         }
       }
     };
-
+ 
     // RIEPILOGO ORDINI PER FAMIGLIA (PADRINI) - stampabile in PDF
     window.mostraRiepilogoFamiglieAdmin = async function() {
       try {
         const snapshot = await getDocs(collection(db, "prenotazioni"));
-
+ 
         // Raggruppa per famiglia -> prodotto -> quantità totale
         const famiglie = {};
         snapshot.forEach(d => {
@@ -823,21 +871,21 @@
           if (!famiglie[fam]) famiglie[fam] = {};
           famiglie[fam][dati.prodotto] = (famiglie[fam][dati.prodotto] || 0) + dati.quantita;
         });
-
+ 
         const nomiFamiglie = Object.keys(famiglie).sort((a, b) => a.localeCompare(b));
-
+ 
         let html = `<p style="text-align:center; color:#666; margin-bottom:20px;">Generato il ${new Date().toLocaleDateString('it-IT')}</p>`;
-
+ 
         if (nomiFamiglie.length === 0) {
           html += "<p>Nessun ordine trovato.</p>";
         } else {
           nomiFamiglie.forEach(fam => {
             const prodotti = Object.entries(famiglie[fam]).filter(([_, qta]) => qta > 0);
             if (prodotti.length === 0) return;
-
+ 
             let totQuantita = 0;
             let totSoldi = 0;
-
+ 
             html += `<div class="card-persona famiglia-stampa">
                        <h4>👤 ${fam}</h4>
                        <div class="table-wrapper"><table style="width:100%;">
@@ -849,7 +897,7 @@
                            <th style="color:black; background:#eee;">Creme</th>
                            <th style="color:black; background:#eee;">Etich. Vasetti</th>
                          </tr>`;
-
+ 
             prodotti.forEach(([prod, qta]) => {
               totQuantita += qta;
               totSoldi += qta * window.getPrezzo(prod);
@@ -862,7 +910,7 @@
                          <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
                        </tr>`;
             });
-
+ 
             html += `<tr style="background:#e8f5e9; font-weight:bold;">
                        <td style="text-align:left;">Totale</td>
                        <td style="text-align:center;">${totQuantita}</td>
@@ -871,19 +919,19 @@
                        <td style="text-align:center; font-weight:normal; font-size:0.68rem;">Totale adesivi:</td>
                        <td style="text-align:center;">€ ${totSoldi.toFixed(2)}</td>
                      </tr>`;
-
+ 
             html += `</table></div>
                      </div>`;
           });
         }
-
+ 
         document.getElementById("contenuto-stampa-famiglie").innerHTML = html;
         document.getElementById("modal-riepilogo-famiglie").style.display = "flex";
       } catch(e) {
         mostraStatus("Errore caricamento riepilogo: " + e.message, true);
       }
     };
-
+ 
     window.salvaOrdineAdmin = async function() {
       try {
         const inputs = document.querySelectorAll("[id^='sort-']");
@@ -892,11 +940,11 @@
           const id = inp.id.replace("sort-", "");
           ordine[parseInt(inp.value)] = id;
         });
-
+ 
         await setDoc(doc(db, "prodotti", "_config"), {
           ordine: ordine.filter(x => x)
         });
-
+ 
         // Salva anche i prezzi modificati per ciascun prodotto
         const prezzoInputs = document.querySelectorAll("[id^='prezzo-']");
         for (const inp of prezzoInputs) {
@@ -904,50 +952,50 @@
           const prezzo = parseFloat(inp.value) || 0;
           await setDoc(doc(db, "prodotti", id), { prezzo: prezzo }, { merge: true });
         }
-
+ 
         mostraStatus("Ordine e prezzi salvati!");
       } catch(e) {
         mostraStatus("Errore: " + e.message, true);
       }
     };
-
+ 
     window.resetCompletoAdmin = async function() {
       if (!confirm("⚠️ ATTENZIONE! Eliminerai TUTTI i dati. Sei VERAMENTE sicuro?")) return;
       if (!confirm("Ultima conferma: elimino VERAMENTE tutto?")) return;
-
+ 
       try {
         // Elimina tutti i prodotti
         const prodDocs = await getDocs(collection(db, "prodotti"));
         for (const d of prodDocs.docs) {
           await deleteDoc(d.ref);
         }
-
+ 
         // Elimina tutte le prenotazioni
         const prenDocs = await getDocs(collection(db, "prenotazioni"));
         for (const d of prenDocs.docs) {
           await deleteDoc(d.ref);
         }
-
+ 
         mostraStatus("Database completamente resettato!");
         setTimeout(() => caricaProdottiAdmin(), 1000);
       } catch(e) {
         mostraStatus("Errore: " + e.message, true);
       }
     };
-
+ 
   </script>
 </head>
 <body>
-
+ 
 <div id="status-message"></div>
-
+ 
 <!-- MAIN CONTENT -->
 <div id="main-content">
   <header>
     <img src="logo.png" alt="Logo" onerror="this.style.display='none'"/>
     <h2>Ordini Colombe</h2>
   </header>
-
+ 
   <div style="max-width: 600px; margin: auto;">
       <label for="nome">👤 Famiglia Padrini:</label>
       <select id="nome" onchange="localStorage.setItem('famiglia', this.value)">
@@ -958,19 +1006,19 @@
         <option>Porto</option><option>Romano</option><option>Ruiz</option>
         <option>Scala</option><option>Tanasi</option><option>Zammillo</option>
       </select>
-
+ 
       <div id="sezione-prodotti">
         <h3 style="color: #2e7d32; margin-top: 1.5rem;">📦 Disponibilità</h3>
         <div id="lista-prodotti">Caricamento disponibilità in corso...</div>
       </div>
-
+ 
       <button onclick="confermaOrdine()">🚀 Invia Prenotazione</button>
       <button class="btn-dark" onclick="mostraRiepilogoPrenotazioni()">📊 Visualizza Riepilogo</button>
       <button id="btn-notifiche" class="admin-btn" onclick="attivaNotifichePush()">🔔 Abilita Notifiche</button>
       <button class="btn-warning" onclick="entraPannelloAdmin()" style="margin-top:1rem;">⚙️ Pannello Admin</button>
   </div>
 </div>
-
+ 
 <!-- ADMIN PANEL -->
 <div id="admin-panel" style="display:none; max-width:800px; margin:auto;">
   <header>
@@ -981,7 +1029,7 @@
   </div>
   <button class="btn-secondary" onclick="esciPannelloAdmin()" style="width:100%;">← Torna Indietro</button>
 </div>
-
+ 
 <!-- MODALE LOGIN ADMIN -->
 <div id="modal-admin-login" class="modal">
   <div class="modal-content-box" style="max-width: 340px;">
@@ -995,7 +1043,7 @@
     </div>
   </div>
 </div>
-
+ 
 <!-- MODALE CONFERMA -->
 <div id="modal" class="modal">
   <div class="modal-content-box">
@@ -1007,7 +1055,7 @@
     </div>
   </div>
 </div>
-
+ 
 <!-- MODALE RIEPILOGO -->
 <div id="modal-riepilogo" class="modal">
   <div class="modal-content-box" style="max-width: 600px;">
@@ -1016,7 +1064,7 @@
     <button class="btn-secondary" onclick="document.getElementById('modal-riepilogo').style.display='none'" style="margin-top:15px;">Chiudi</button>
   </div>
 </div>
-
+ 
 <!-- MODALE DETTAGLIO PERSONE -->
 <div id="modal-dettaglio-persone" class="modal">
   <div class="modal-content-box" style="max-width: 650px; width: 95%;">
@@ -1028,7 +1076,7 @@
     </div>
   </div>
 </div>
-
+ 
 <!-- MODALE RIEPILOGO ORDINI PER FAMIGLIA (ADMIN) -->
 <div id="modal-riepilogo-famiglie" class="modal">
   <div class="modal-content-box" style="max-width: 800px; width: 95%;">
@@ -1042,12 +1090,12 @@
     <div id="contenuto-stampa-famiglie"></div>
   </div>
 </div>
-
+ 
 <script>
   // Ripristina l'ultima famiglia selezionata
   const fav = localStorage.getItem("famiglia");
   if (fav) document.getElementById("nome").value = fav;
-
+ 
   // IMPORTANTE: lo script Firebase in cima alla pagina è "type=module", quindi viene
   // eseguito in differita (dopo il parsing di tutta la pagina). Questo script invece
   // è uno script normale e verrebbe eseguito SUBITO, cioè PRIMA che il modulo abbia
@@ -1059,7 +1107,7 @@
       window.aggiornaVisibilitaBottoneNotifiche();
     }
   });
-
+ 
   // Funzione intelligente per leggere quantità e nomi multipli dalla nota
   function capitalizzaNome(str) {
     return str
@@ -1068,24 +1116,24 @@
       .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
       .join(" ");
   }
-
+ 
   function analizzaNotaEQuantita(qtaTotaleInserita, notaTesto) {
     let testo = notaTesto.trim().replace(/,/g, ' ');
     // Separa i numeri "attaccati" al nome, es: "2luca" -> "2 luca"
     testo = testo.replace(/(\d+)(?=[^\s\d])/g, '$1 ');
     const tokens = testo.split(/\s+/).filter(t => t !== "");
-
+ 
     if (tokens.length === 0) {
       return { errore: "Inserisci un nome nella nota." };
     }
-
+ 
     const contieneNumeri = tokens.some(t => /^\d+$/.test(t));
-
+ 
     // Nessun numero nella nota: tutta la quantità inserita va al nome scritto (anche più parole)
     if (!contieneNumeri) {
       return { risultati: [{ quantita: qtaTotaleInserita, nota: capitalizzaNome(testo) }] };
     }
-
+ 
     // Con i numeri il formato è: <numero> <nome, anche di più parole> <numero> <nome> ...
     // Solo il testo PRIMA del primo numero è ambiguo: non sappiamo a chi assegnarlo.
     if (!/^\d+$/.test(tokens[0])) {
@@ -1095,12 +1143,12 @@
       const testoAmbiguo = parolePrimaDelNumero.join(" ");
       return { errore: `Specifica un numero prima di "${capitalizzaNome(testoAmbiguo)}" (es: "3 ${testoAmbiguo}").` };
     }
-
+ 
     const risultati = [];
     let correnteQta = null;
     let correnteNome = [];
     let erroreNomeMancante = null;
-
+ 
     const chiudiGruppo = () => {
       if (correnteQta === null) return;
       const nome = correnteNome.join(" ").trim();
@@ -1110,7 +1158,7 @@
       }
       risultati.push({ quantita: parseInt(correnteQta), nota: capitalizzaNome(nome) });
     };
-
+ 
     for (const token of tokens) {
       if (erroreNomeMancante) break;
       if (/^\d+$/.test(token)) {
@@ -1122,33 +1170,33 @@
       }
     }
     if (!erroreNomeMancante) chiudiGruppo();
-
+ 
     if (erroreNomeMancante) {
       return { errore: erroreNomeMancante };
     }
-
+ 
     const somma = risultati.reduce((acc, r) => acc + r.quantita, 0);
     if (somma !== qtaTotaleInserita) {
       return { errore: `La somma nella nota (${somma}) non coincide con la quantità inserita (${qtaTotaleInserita}). Correggi uno dei due valori.` };
     }
-
+ 
     return { risultati };
   }
-
+ 
   function confermaOrdine() {
     const nomeFamiglia = document.getElementById("nome").value;
     if (!nomeFamiglia) return mostraStatus("Seleziona la famiglia!", true);
-
+ 
     const ordine = [];
     let erroreInput = false;
-
+ 
     document.querySelectorAll("[id^='qta-']").forEach(input => {
       if (erroreInput) return;
       const id = input.id.replace("qta-", "");
       const qDefault = parseInt(input.value) || 0;
       const nTesto = document.getElementById(`nota-${id}`)?.value.trim() || "";
       const pNome = input.parentElement.parentElement.querySelector(".col-prod").innerText;
-
+ 
       if (qDefault > 0 || nTesto !== "") {
         if (qDefault <= 0) {
           mostraStatus(`Inserisci la quantità per ${pNome}.`, true);
@@ -1160,15 +1208,15 @@
           erroreInput = true;
           return;
         }
-
+ 
         const esito = analizzaNotaEQuantita(qDefault, nTesto);
-
+ 
         if (esito.errore) {
           mostraStatus(`${pNome}: ${esito.errore}`, true);
           erroreInput = true;
           return;
         }
-
+ 
         for (const sub of esito.risultati) {
           if (sub.quantita > 0 && sub.nota) {
             ordine.push({ 
@@ -1182,30 +1230,30 @@
         }
       }
     });
-
+ 
     if (erroreInput) return;
     if (ordine.length === 0) return mostraStatus("Nessun prodotto selezionato.", true);
-
+ 
     window.payloadTemporaneo = ordine;
     let text = `Nuova Prenotazione:\n`;
     ordine.forEach(o => text += `• ${o.prodotto}: ${o.quantita} (${o.nota})\n`);
-
+ 
     document.getElementById("titoloModal").innerText = "Conferma Ordine";
     document.getElementById("riepilogoCorpo").innerText = text;
     document.getElementById("modal").style.display = "flex";
   }
-
+ 
   function preparaModificaDettaglio() {
     const fam = document.getElementById("nome").value;
     const modifiche = [];
     let riepilogoTesto = `⚠️ MODIFICA RICHIESTA\n\n`;
     let erroreValidazione = false;
-
+ 
     document.querySelectorAll(".card-persona").forEach(card => {
         if (erroreValidazione) return;
         const inAdds = card.querySelectorAll(".in-add");
         const inSubs = card.querySelectorAll(".in-sub");
-
+ 
         inAdds.forEach((el, i) => {
             if (erroreValidazione) return;
             const add = parseInt(el.value) || 0;
@@ -1213,15 +1261,15 @@
             const disponibile = parseInt(inSubs[i].dataset.current) || 0;
             const prod = el.dataset.prod;
             const pers = el.dataset.pers;
-
+ 
             if (sub > disponibile) {
                 mostraStatus(`Non puoi togliere ${sub} ${prod} a ${pers}: ne ha solo ${disponibile}.`, true);
                 erroreValidazione = true;
                 return;
             }
-
+ 
             const netto = add - sub;
-
+ 
             if (netto !== 0) {
                 const pId = el.dataset.id;
                 modifiche.push({ nome: fam, prodottoId: pId, prodotto: prod, quantita: netto, nota: pers });
@@ -1229,10 +1277,10 @@
             }
         });
     });
-
+ 
     if (erroreValidazione) return;
     if (modifiche.length === 0) return mostraStatus("Nessuna modifica inserita.", true);
-
+ 
     document.getElementById("modal-dettaglio-persone").style.display = "none";
     window.payloadTemporaneo = modifiche;
     document.getElementById("titoloModal").innerText = "Conferma Modifiche";
