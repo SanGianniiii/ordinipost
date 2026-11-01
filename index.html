@@ -82,6 +82,7 @@
       border-radius: 15px; color: white; font-weight: bold;
       font-size: 1.2rem; text-align: center; z-index: 60000;
       display: none; box-shadow: 0 10px 30px rgba(0,128,0,0.3);
+      max-width: 90vw;
     }
 
     .status-success { background-color: #2e7d32; }
@@ -98,25 +99,6 @@
     .admin-btn { background-color: transparent; border: 1px solid #2e7d32; color: #2e7d32; margin-top: 1.5rem; }
 
     /* STILI ADMIN PANEL */
-    .admin-section { display: none; }
-    .admin-section.active { display: block; }
-    
-    .sortable-list { list-style: none; padding: 0; margin: 0; }
-    .sortable-list li {
-      background: white;
-      padding: 12px;
-      margin: 8px 0;
-      border-radius: 6px;
-      border-left: 4px solid #2e7d32;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      cursor: grab;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .sortable-list li:active { cursor: grabbing; }
-    .sortable-list li.drag-over { background: #e8f5e9; }
-
     .prod-input-group {
       background: #f5f5f5;
       padding: 12px;
@@ -124,74 +106,11 @@
       border-radius: 6px;
       border: 1px solid #ccc;
     }
+    .prod-input-group label { margin-top: 0; font-size: 0.95rem; }
+    .prod-input-group input { margin-top: 0.3rem; }
 
-    .prod-input-group label {
-      margin-top: 0;
-      font-size: 0.95rem;
-    }
-
-    .prod-input-group input {
-      margin-top: 0.3rem;
-    }
-
-    .flex-row {
-      display: flex;
-      gap: 10px;
-    }
-
-    .flex-row > * {
-      flex: 1;
-    }
-
-    .warning-badge {
-      background: #ff9800;
-      color: white;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      font-weight: bold;
-    }
-
-    .danger-badge {
-      background: #d32f2f;
-      color: white;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      font-weight: bold;
-    }
-
-    .tabs {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-    }
-
-    .tab-btn {
-      padding: 10px 20px;
-      border: 2px solid #2e7d32;
-      background: white;
-      color: #2e7d32;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: bold;
-      transition: all 0.3s;
-      margin-top: 0;
-    }
-
-    .tab-btn.active {
-      background: #2e7d32;
-      color: white;
-    }
-
-    .tab-btn:hover {
-      background: #e8f5e9;
-    }
-
-    .tab-btn.active:hover {
-      background: #1b5e20;
-    }
+    .nota-admin { font-size: 0.82rem; color: #555; margin: 0.4rem 0 0 0; }
+    .bloccata { color: #d32f2f; font-weight: bold; font-size: 0.85rem; }
 
     /* TABELLA ADMIN - ottimizzata per smartphone (colonne a misura di contenuto + scroll orizzontale) */
     .admin-table { table-layout: auto; }
@@ -277,11 +196,12 @@
     }
   </style>
 
-  <!-- SDK FIREBASE v10 MODULARE -->
+  <!-- TUTTA LA LOGICA È IN UN UNICO MODULO (Firebase v10 modulare) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { 
-      getFirestore, collection, onSnapshot, doc, getDoc, runTransaction, getDocs, query, where, serverTimestamp, setDoc, deleteDoc
+    import {
+      getFirestore, collection, onSnapshot, doc, getDoc, runTransaction, getDocs,
+      query, where, limit, serverTimestamp, setDoc, deleteDoc, writeBatch
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 
@@ -299,7 +219,58 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // ⚙️ SETUP SERVICE WORKER E NOTIFICHE AL CARICAMENTO
+    // Elenco di partenza delle famiglie: viene caricato nel database una sola volta
+    // (al primo avvio con la collezione "famiglie" vuota). Poi si gestisce dal pannello Admin.
+    const FAMIGLIE_DEFAULT = [
+      "Carapezza", "Caruso", "Di Maria", "Marino", "Massimino", "Milanese", "Murabito", "Nicosia",
+      "Pantellaro", "Porto", "Romano", "Ruiz", "Scala", "Tanasi", "Zammillo"
+    ];
+
+    // ============ UTILITÀ ============
+    // Escape HTML: evita che note/nomi con caratteri speciali rompano la pagina o eseguano codice
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+    window.esc = esc;
+
+    const euro = (n) => "€ " + Number(n || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    function slug(testo) {
+      const r = String(testo).trim().toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      return r || `id-${Date.now()}`;
+    }
+
+    function capitalizzaNome(str) {
+      return str
+        .trim()
+        .split(/\s+/)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(" ");
+    }
+
+    // Chiave di raggruppamento "persona" (stessa logica ovunque)
+    const chiavePersona = (nota) => {
+      const n = String(nota || "").trim().toLowerCase();
+      return n || "generale";
+    };
+
+    // Messaggio di stato: il timer precedente viene annullato, così un messaggio
+    // nuovo non sparisce prima del tempo a causa del timeout di quello vecchio.
+    let statusTimer = null;
+    window.mostraStatus = function(messaggio, isError = false) {
+      const statusBox = document.getElementById("status-message");
+      statusBox.innerText = (isError ? "❌ " : "✅ ") + messaggio;
+      statusBox.className = isError ? "status-error" : "status-success";
+      statusBox.style.display = "block";
+      clearTimeout(statusTimer);
+      statusTimer = setTimeout(() => statusBox.style.display = "none", isError ? 4500 : 2500);
+    };
+    const mostraStatus = window.mostraStatus;
+
+    // ============ SERVICE WORKER E NOTIFICHE ============
     let messaging = null;
     let serviceWorkerReady = false;
     let swRegistration = null;
@@ -310,102 +281,154 @@
           console.log('Service Worker non supportati');
           return;
         }
-        
+
         await navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: '/' });
         // Aspetta che il Service Worker sia davvero ATTIVO, non solo registrato
         swRegistration = await navigator.serviceWorker.ready;
-        console.log('Service Worker attivo:', swRegistration);
         serviceWorkerReady = true;
-        
-        // Ora configura la messaging
+
         try {
           messaging = getMessaging(app);
-          
-          // Ascolta i messaggi mentre l'app è aperta
           onMessage(messaging, (payload) => {
-            console.log('Messaggio ricevuto:', payload);
             mostraStatus(`🔔 ${payload.data?.title || "Notifica"}: ${payload.data?.body || ""}`);
           });
-          
-          console.log('Firebase Messaging inizializzato');
-        } catch(e) {
+        } catch (e) {
           console.error('Errore inizializzazione messaging:', e);
         }
-      } catch(e) {
+      } catch (e) {
         console.error('Errore registrazione Service Worker:', e);
       }
     }
-
-    // Chiama al caricamento pagina
     window.addEventListener('load', setupServiceWorker);
 
-    let prodottiGlobal = [];
+    // ============ PRODOTTI (ascolto in tempo reale) ============
+    let prodottiGlobal = []; // solo prodotti veri, già ordinati (senza il documento _config)
 
-    // Mostra un messaggio stilizzato
-    window.mostraStatus = function(messaggio, isError = false) {
-      const statusBox = document.getElementById("status-message");
-      statusBox.innerText = (isError ? "❌ " : "✅ ") + messaggio;
-      statusBox.className = isError ? "status-error" : "status-success";
-      statusBox.style.display = "block";
-      setTimeout(() => statusBox.style.display = "none", isError ? 3500 : 2500);
-    };
-
-    // Prezzo letto direttamente dal prodotto nel database (campo "prezzo"), non più da parole chiave
-    window.getPrezzo = (nomeProdotto) => {
-      const pObj = prodottiGlobal.find(x => x.tipo === nomeProdotto);
+    // Prezzo letto dal prodotto nel database. Si preferisce l'id, con ripiego sul nome.
+    window.getPrezzo = (nomeProdotto, idProdotto) => {
+      let pObj = idProdotto ? prodottiGlobal.find(x => x.id === idProdotto) : null;
+      if (!pObj) pObj = prodottiGlobal.find(x => x.tipo === nomeProdotto);
       return pObj && pObj.prezzo ? Number(pObj.prezzo) : 0;
     };
 
-    // ⭐ ASCOLTO ORDINE PERSONALIZZATO DAI PRODOTTI
+    function ordinaProdotti(lista, ordineArray) {
+      if (!Array.isArray(ordineArray)) return lista;
+      return lista.sort((a, b) => {
+        const idxA = ordineArray.indexOf(a.id);
+        const idxB = ordineArray.indexOf(b.id);
+        return (idxA === -1 ? 9999 : idxA) - (idxB === -1 ? 9999 : idxB);
+      });
+    }
+
     onSnapshot(collection(db, "prodotti"), (snapshot) => {
-      prodottiGlobal = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // Ordina secondo l'array 'ordine' se esiste
-      const configDoc = snapshot.docs.find(d => d.id === "_config");
-      if (configDoc?.data()?.ordine) {
-        const ordineArray = configDoc.data().ordine;
-        prodottiGlobal.sort((a, b) => {
-          const idxA = ordineArray.indexOf(a.id);
-          const idxB = ordineArray.indexOf(b.id);
-          return (idxA === -1 ? 9999 : idxA) - (idxB === -1 ? 9999 : idxB);
-        });
-      }
+      const config = snapshot.docs.find(d => d.id === "_config")?.data();
+      const lista = snapshot.docs
+        .filter(d => d.id !== "_config")
+        .map(d => ({ id: d.id, ...d.data() }));
+      prodottiGlobal = ordinaProdotti(lista, config?.ordine);
       renderizzaTabellaPrincipale();
     });
 
     function renderizzaTabellaPrincipale() {
+      const contenitore = document.getElementById("lista-prodotti");
+
+      // Salva quanto l'utente ha già digitato (e il campo attivo) perché la tabella
+      // viene ricostruita a ogni variazione di giacenza, anche causata da altri utenti.
+      const salvati = {};
+      contenitore.querySelectorAll("input").forEach(i => { if (i.id) salvati[i.id] = i.value; });
+      const attivo = document.activeElement;
+      const idAttivo = (attivo && contenitore.contains(attivo)) ? attivo.id : null;
+      let selInizio = null, selFine = null;
+      try { if (idAttivo) { selInizio = attivo.selectionStart; selFine = attivo.selectionEnd; } } catch (e) {}
+
+      if (prodottiGlobal.length === 0) {
+        contenitore.innerHTML = "<p>Nessun prodotto disponibile.</p>";
+        return;
+      }
+
       let html = `<div class="table-wrapper"><table><thead><tr><th class="col-prod">Prodotto</th><th class="col-disp">Disp.</th><th class="col-qta">Qtà</th><th class="col-nota">Nota</th></tr></thead><tbody>`;
-      
+
       prodottiGlobal.forEach((p) => {
-        if (p.id === "_config") return; // Salta il documento di config
-        
-        const isEsaurito = p.giacenza <= 0;
-        const isWarning = !isEsaurito && p.giacenza <= 5;
-        
+        const giacenza = Number(p.giacenza) || 0;
+        const isEsaurito = giacenza <= 0;
+        const isWarning = !isEsaurito && giacenza <= 5;
+
         html += `<tr style="${isEsaurito ? 'background-color: #f9f9f9; color: #999;' : isWarning ? 'background-color: #fff3e0;' : ''}">
-                  <td class="col-prod">${p.tipo}</td>
-                  <td class="col-disp">${p.giacenza}</td>
+                  <td class="col-prod">${esc(p.tipo)}</td>
+                  <td class="col-disp">${giacenza}</td>
                   <td class="col-qta">
-                    ${!isEsaurito 
-                      ? `<input type="number" id="qta-${p.id}" min="0" max="${p.giacenza}" placeholder="0">` 
+                    ${!isEsaurito
+                      ? `<input type="number" id="qta-${esc(p.id)}" min="0" max="${giacenza}" placeholder="0">`
                       : `<span style="color:#d32f2f; font-weight:bold; font-size:0.8rem;">SOLD OUT</span>`
                     }
                   </td>
                   <td class="col-nota">
-                    <input type="text" id="nota-${p.id}" placeholder="${isEsaurito ? '' : 'Es: Mario'}" ${isEsaurito ? 'disabled style="background:#f2f2f2; border:none;"' : ''}>
+                    <input type="text" id="nota-${esc(p.id)}" placeholder="${isEsaurito ? '' : 'Es: Mario'}" ${isEsaurito ? 'disabled style="background:#f2f2f2; border:none;"' : ''}>
                   </td>
                  </tr>`;
       });
-      
+
       html += `</tbody></table></div>`;
-      document.getElementById("lista-prodotti").innerHTML = html;
+      contenitore.innerHTML = html;
+
+      // Ripristina i valori digitati e il focus
+      Object.entries(salvati).forEach(([id, v]) => {
+        const el = document.getElementById(id);
+        if (el && v !== "") el.value = v;
+      });
+      if (idAttivo) {
+        const el = document.getElementById(idAttivo);
+        if (el) {
+          el.focus();
+          try { if (selInizio !== null) el.setSelectionRange(selInizio, selFine); } catch (e) {}
+        }
+      }
     }
 
-    // SISTEMA DI NOTIFICHE MIGLIORATO
-    // Controlla se il cambio di giacenza (vecchia -> nuova) deve generare una notifica.
+    // ============ FAMIGLIE (ascolto in tempo reale) ============
+    let famiglieGlobal = []; // [{id, nome}]
+    let seedControllato = false;
+
+    onSnapshot(collection(db, "famiglie"), (snap) => {
+      famiglieGlobal = snap.docs
+        .map(d => ({ id: d.id, nome: d.data().nome || d.id }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+      renderSelectFamiglie();
+
+      if (snap.empty && !seedControllato) {
+        seedControllato = true;
+        caricaFamiglieDefaultSeNecessario();
+      }
+    });
+
+    function renderSelectFamiglie() {
+      const sel = document.getElementById("nome");
+      const corrente = sel.value || localStorage.getItem("famiglia") || "";
+      let html = '<option value="">-- Seleziona --</option>';
+      famiglieGlobal.forEach(f => { html += `<option value="${esc(f.nome)}">${esc(f.nome)}</option>`; });
+      sel.innerHTML = html;
+      sel.value = famiglieGlobal.some(f => f.nome === corrente) ? corrente : "";
+    }
+
+    // Carica l'elenco predefinito UNA sola volta (flag in meta/famiglie_init):
+    // se poi elimini tutte le famiglie, l'elenco non riappare da solo.
+    async function caricaFamiglieDefaultSeNecessario() {
+      try {
+        const metaRef = doc(db, "meta", "famiglie_init");
+        const meta = await getDoc(metaRef);
+        if (meta.exists()) return;
+        const batch = writeBatch(db);
+        FAMIGLIE_DEFAULT.forEach(n => batch.set(doc(db, "famiglie", slug(n)), { nome: n }));
+        batch.set(metaRef, { fatto: true, data: serverTimestamp() });
+        await batch.commit();
+      } catch (e) {
+        console.error("Errore caricamento famiglie predefinite:", e);
+      }
+    }
+
+    // ============ NOTIFICHE DI GIACENZA ============
     // Le soglie 25 e 15 avvisano solo quando vengono "attraversate" scendendo.
-    // Da 10 in giù avvisa ad OGNI diminuzione. Se la giacenza risale sopra una soglia
-    // e poi ridiscende, la soglia può riattivarsi (nessuno stato salvato, si confrontano
-    // sempre i valori reali prima/dopo).
+    // Da 10 in giù avvisa ad OGNI diminuzione.
     function calcolaNotificaGiacenza(nomeProdotto, vecchia, nuova) {
       if (nuova >= vecchia) return null; // nessuna diminuzione, nessuna notifica
 
@@ -424,7 +447,6 @@
       return null;
     }
 
-    // Funzione per inviare notifiche via Firebase Cloud Messaging
     window.inviaPushNotifica = async function(titolo, corpo) {
       try {
         const risposta = await fetch('/.netlify/functions/notify', {
@@ -438,198 +460,364 @@
         });
         const dati = await risposta.json();
         console.log(`📢 Notifica inviata: ${titolo} - ${corpo}`, dati);
-      } catch(e) {
+      } catch (e) {
         console.error('Errore invio notifica:', e);
       }
     };
 
-    // 2. CONFERMA E SCRITTURA ORDINE TRAMITE TRANSAZIONE ATOMICA (CORRETTA)
+    // ============ PARSING NOTA / QUANTITÀ ============
+    function analizzaNotaEQuantita(qtaTotaleInserita, notaTesto) {
+      let testo = notaTesto.trim().replace(/,/g, ' ');
+      // Separa i numeri "attaccati" al nome, es: "2luca" -> "2 luca"
+      testo = testo.replace(/(\d+)(?=[^\s\d])/g, '$1 ');
+      const tokens = testo.split(/\s+/).filter(t => t !== "");
+
+      if (tokens.length === 0) {
+        return { errore: "Inserisci un nome nella nota." };
+      }
+
+      const contieneNumeri = tokens.some(t => /^\d+$/.test(t));
+
+      // Nessun numero nella nota: tutta la quantità inserita va al nome scritto (anche più parole)
+      if (!contieneNumeri) {
+        return { risultati: [{ quantita: qtaTotaleInserita, nota: capitalizzaNome(testo) }] };
+      }
+
+      // Con i numeri il formato è: <numero> <nome, anche di più parole> <numero> <nome> ...
+      if (!/^\d+$/.test(tokens[0])) {
+        const parolePrimaDelNumero = [];
+        let k = 0;
+        while (k < tokens.length && !/^\d+$/.test(tokens[k])) { parolePrimaDelNumero.push(tokens[k]); k++; }
+        const testoAmbiguo = parolePrimaDelNumero.join(" ");
+        return { errore: `Specifica un numero prima di "${capitalizzaNome(testoAmbiguo)}" (es: "3 ${testoAmbiguo}").` };
+      }
+
+      const risultati = [];
+      let correnteQta = null;
+      let correnteNome = [];
+      let erroreNomeMancante = null;
+
+      const chiudiGruppo = () => {
+        if (correnteQta === null) return;
+        const nome = correnteNome.join(" ").trim();
+        if (!nome) {
+          erroreNomeMancante = `Manca il nome dopo il numero ${correnteQta}.`;
+          return;
+        }
+        risultati.push({ quantita: parseInt(correnteQta), nota: capitalizzaNome(nome) });
+      };
+
+      for (const token of tokens) {
+        if (erroreNomeMancante) break;
+        if (/^\d+$/.test(token)) {
+          chiudiGruppo();
+          correnteQta = token;
+          correnteNome = [];
+        } else {
+          correnteNome.push(token);
+        }
+      }
+      if (!erroreNomeMancante) chiudiGruppo();
+
+      if (erroreNomeMancante) return { errore: erroreNomeMancante };
+
+      const somma = risultati.reduce((acc, r) => acc + r.quantita, 0);
+      if (somma !== qtaTotaleInserita) {
+        return { errore: `La somma nella nota (${somma}) non coincide con la quantità inserita (${qtaTotaleInserita}). Correggi uno dei due valori.` };
+      }
+
+      return { risultati };
+    }
+
+    // ============ NUOVO ORDINE (validazione lato schermo) ============
+    window.confermaOrdine = function() {
+      const nomeFamiglia = document.getElementById("nome").value;
+      if (!nomeFamiglia) return mostraStatus("Seleziona la famiglia!", true);
+
+      const ordine = [];
+
+      for (const p of prodottiGlobal) {
+        const qInput = document.getElementById(`qta-${p.id}`);
+        if (!qInput) continue; // prodotto esaurito, nessun campo
+
+        const qta = parseInt(qInput.value) || 0;
+        const nTesto = (document.getElementById(`nota-${p.id}`)?.value || "").trim();
+
+        if (qta <= 0 && nTesto === "") continue;
+        if (qta <= 0) return mostraStatus(`Inserisci la quantità per ${p.tipo}.`, true);
+        if (!nTesto) return mostraStatus(`Inserisci una nota (Chi?) per ${p.tipo}`, true);
+
+        const giacenza = Number(p.giacenza) || 0;
+        if (qta > giacenza) return mostraStatus(`${p.tipo}: ne sono rimasti solo ${giacenza}.`, true);
+
+        const esito = analizzaNotaEQuantita(qta, nTesto);
+        if (esito.errore) return mostraStatus(`${p.tipo}: ${esito.errore}`, true);
+
+        for (const sub of esito.risultati) {
+          if (sub.quantita > 0 && sub.nota) {
+            ordine.push({
+              nome: nomeFamiglia,
+              prodottoId: p.id,
+              prodotto: p.tipo,
+              quantita: sub.quantita,
+              nota: sub.nota
+            });
+          }
+        }
+      }
+
+      if (ordine.length === 0) return mostraStatus("Nessun prodotto selezionato.", true);
+
+      window.payloadTemporaneo = ordine;
+      window.tipoOperazione = "ordine";
+      let text = `Nuova Prenotazione (${nomeFamiglia}):\n`;
+      ordine.forEach(o => text += `• ${o.prodotto}: ${o.quantita} (${o.nota})\n`);
+
+      document.getElementById("titoloModal").innerText = "Conferma Ordine";
+      document.getElementById("riepilogoCorpo").innerText = text;
+      document.getElementById("modal").style.display = "flex";
+    };
+
+    // ============ SCRITTURA ORDINE / MODIFICA (TRANSAZIONE ATOMICA) ============
+    let operazioneInCorso = false;
+
     window.eseguiOperazioneBackend = async function() {
-      if (!window.payloadTemporaneo || window.payloadTemporaneo.length === 0) return;
+      const items = window.payloadTemporaneo;
+      if (!items || items.length === 0) return;
+      if (operazioneInCorso) return;
+      operazioneInCorso = true;
       document.getElementById("modal").style.display = "none";
 
       try {
-        await runTransaction(db, async (transaction) => {
-          
-          // FASE 1: Esegui TUTTI i READ (Letture) e controlli prima
-          const operazioniPronte = [];
-
-          for (const item of window.payloadTemporaneo) {
-            const prodRef = doc(db, "prodotti", item.prodottoId);
-            const prodDoc = await transaction.get(prodRef);
-
-            if (!prodDoc.exists()) throw new Error(`Prodotto ${item.prodotto} non trovato!`);
-            const datiProd = prodDoc.data();
-            const giacenzaAttuale = datiProd.giacenza;
-
-            if (giacenzaAttuale < item.quantita) {
-              throw new Error(`Disponibilità insufficiente per ${item.prodotto}! Rimasti: ${giacenzaAttuale}`);
+        // Prima della transazione: per le RIDUZIONI rilegge dal database quanto ha davvero
+        // ogni persona, così due dispositivi non possono togliere due volte lo stesso pezzo.
+        const negativi = items.filter(i => i.quantita < 0);
+        if (negativi.length > 0) {
+          const snap = await getDocs(query(collection(db, "prenotazioni"), where("nome", "==", items[0].nome)));
+          const netti = {};
+          snap.forEach(d => {
+            const x = d.data();
+            const k = chiavePersona(x.nota) + "|" + (x.prodottoId || x.prodotto);
+            netti[k] = (netti[k] || 0) + (Number(x.quantita) || 0);
+          });
+          for (const it of negativi) {
+            const k = chiavePersona(it.nota) + "|" + it.prodottoId;
+            const disponibile = netti[k] || 0;
+            if (disponibile + it.quantita < 0) {
+              throw new Error(`${it.nota} ha ora solo ${disponibile} x ${it.prodotto}: impossibile toglierne ${Math.abs(it.quantita)}. Riapri il dettaglio e riprova.`);
             }
+          }
+        }
 
-            operazioniPronte.push({
-              prodRef,
-              datiProd,
-              item,
-              giacenzaAttuale
-            });
+        const notifiche = await runTransaction(db, async (transaction) => {
+          // Somma le variazioni per prodotto: un SOLO update per documento prodotto
+          const aggregati = new Map();
+          for (const item of items) {
+            let a = aggregati.get(item.prodottoId);
+            if (!a) {
+              a = { ref: doc(db, "prodotti", item.prodottoId), nomeProdotto: item.prodotto, delta: 0 };
+              aggregati.set(item.prodottoId, a);
+            }
+            a.delta += item.quantita;
           }
 
-          // FASE 2: Esegui TUTTI i WRITE (Scritture) dopo le letture
+          // FASE 1: tutte le LETTURE e i controlli sul TOTALE (non sulla singola riga)
+          for (const a of aggregati.values()) {
+            const snap = await transaction.get(a.ref);
+            if (!snap.exists()) throw new Error(`Prodotto ${a.nomeProdotto} non trovato!`);
+            a.dati = snap.data();
+            a.vecchia = Number(a.dati.giacenza) || 0;
+            a.nuova = a.vecchia - a.delta;
+            if (a.nuova < 0) {
+              throw new Error(`Disponibilità insufficiente per ${a.nomeProdotto}! Rimasti: ${a.vecchia}, richiesti in totale: ${a.delta}`);
+            }
+          }
+
+          // FASE 2: tutte le SCRITTURE
           const notificheDaInviare = [];
-
-          // Raggruppa le operazioni per prodottoId: se più persone ordinano lo
-          // stesso prodotto, Firestore deve ricevere UN SOLO transaction.update
-          // per quel documento (altrimenti l'ultima chiamata sovrascrive le
-          // precedenti e la giacenza viene scalata solo dell'ultima quantità).
-          const aggregatiPerProdotto = new Map();
-          for (const op of operazioniPronte) {
-            const chiave = op.item.prodottoId;
-            if (!aggregatiPerProdotto.has(chiave)) {
-              aggregatiPerProdotto.set(chiave, {
-                prodRef: op.prodRef,
-                datiProd: op.datiProd,
-                giacenzaAttuale: op.giacenzaAttuale,
-                totaleQuantita: 0,
-                nomeProdotto: op.item.prodotto
-              });
-            }
-            aggregatiPerProdotto.get(chiave).totaleQuantita += op.item.quantita;
-          }
-
-          // Un solo update per prodotto, con la somma totale delle quantità richieste
-          for (const agg of aggregatiPerProdotto.values()) {
-            const nuovaGiacenza = agg.giacenzaAttuale - agg.totaleQuantita;
-
-            transaction.update(agg.prodRef, {
-              giacenza: nuovaGiacenza,
-              ordinati: (agg.datiProd.ordinati || 0) + agg.totaleQuantita
+          for (const a of aggregati.values()) {
+            transaction.update(a.ref, {
+              giacenza: a.nuova,
+              ordinati: Math.max(0, (Number(a.dati.ordinati) || 0) + a.delta)
             });
-
-            const notif = calcolaNotificaGiacenza(agg.nomeProdotto, agg.giacenzaAttuale, nuovaGiacenza);
+            const notif = calcolaNotificaGiacenza(a.nomeProdotto, a.vecchia, a.nuova);
             if (notif) notificheDaInviare.push(notif);
           }
 
-          // Le prenotazioni restano individuali: una per ogni persona/riga inserita
-          for (const op of operazioniPronte) {
-            const prenRef = doc(collection(db, "prenotazioni"));
-            transaction.set(prenRef, {
-              nome: op.item.nome,
-              prodotto: op.item.prodotto,
-              prodottoId: op.item.prodottoId,
-              quantita: op.item.quantita,
-              nota: op.item.nota,
+          // Le prenotazioni restano individuali (una per ogni persona/riga)
+          for (const item of items) {
+            transaction.set(doc(collection(db, "prenotazioni")), {
+              nome: item.nome,
+              prodotto: item.prodotto,
+              prodottoId: item.prodottoId,
+              quantita: item.quantita,
+              nota: item.nota,
               data: serverTimestamp()
             });
           }
 
-          // Salva le notifiche da inviare fuori dalla transazione (non si può fare fetch dentro)
-          window._notificheInSospeso = notificheDaInviare;
+          return notificheDaInviare;
         });
 
-        // Reset input form
-        document.querySelectorAll('input[type="number"], input[type="text"]').forEach(i => i.value = "");
-        
-        mostraStatus("ORDINE CONFERMATO");
-        
-        // Invia le notifiche di soglia calcolate durante la transazione
-        (window._notificheInSospeso || []).forEach(n => inviaPushNotifica(n.titolo, n.corpo));
-        window._notificheInSospeso = [];
+        // Svuota solo i campi del modulo ordini (non quelli del pannello admin)
+        document.querySelectorAll('#lista-prodotti input').forEach(i => i.value = "");
 
+        mostraStatus(window.tipoOperazione === "modifica" ? "MODIFICA APPLICATA" : "ORDINE CONFERMATO");
+        (notifiche || []).forEach(n => window.inviaPushNotifica(n.titolo, n.corpo));
+        window.payloadTemporaneo = null;
       } catch (e) {
         mostraStatus("ERRORE: " + e.message, true);
+      } finally {
+        operazioneInCorso = false;
       }
     };
 
-    // 3. MOSTRAMO IL RIEPILOGO DELLA FAMIGLIA
+    // ============ RIEPILOGO FAMIGLIA ============
     window.mostraRiepilogoPrenotazioni = async function() {
       const fam = document.getElementById("nome").value;
       if (!fam) return mostraStatus("Seleziona una famiglia!", true);
 
-      const q = query(collection(db, "prenotazioni"), where("nome", "==", fam));
-      const snapshot = await getDocs(q);
+      try {
+        const snapshot = await getDocs(query(collection(db, "prenotazioni"), where("nome", "==", fam)));
 
-      const riepilogoMap = {};
-      let totalePezzi = 0;
-      let totaleEuro = 0;
+        const riepilogo = {}; // chiave prodotto -> {nome, id, qta}
+        snapshot.forEach((d) => {
+          const x = d.data();
+          const k = x.prodottoId || x.prodotto;
+          if (!riepilogo[k]) riepilogo[k] = { nome: x.prodotto, id: x.prodottoId, qta: 0 };
+          riepilogo[k].qta += Number(x.quantita) || 0;
+        });
 
-      snapshot.forEach((doc) => {
-        const d = doc.data();
-        riepilogoMap[d.prodotto] = (riepilogoMap[d.prodotto] || 0) + d.quantita;
-      });
+        let totaleEuro = 0;
+        let html = `<div style="background:#e8f5e9; padding:10px; border-radius:8px; margin-bottom:15px; border: 1px solid #a5d6a7;"><strong>${esc(fam)}</strong></div>`;
+        html += `<div class="table-wrapper"><table style="width:100%; font-size:1.1rem;"><tr style="background:#2e7d32; color:white;"><th style="text-align:left; padding:12px;">Prodotto</th><th style="width:30%;">Qtà</th></tr>`;
 
-      let html = `<div style="background:#e8f5e9; padding:10px; border-radius:8px; margin-bottom:15px; border: 1px solid #a5d6a7;"><strong>${fam}</strong></div>`;
-      html += `<div class="table-wrapper"><table style="width:100%; font-size:1.1rem;"><tr style="background:#2e7d32; color:white;"><th style="text-align:left; padding:12px;">Prodotto</th><th style="width:30%;">Qtà</th></tr>`;
-
-      for (const [prod, qta] of Object.entries(riepilogoMap)) {
-        if (qta > 0) {
-          totalePezzi += qta;
-          totaleEuro += (qta * window.getPrezzo(prod));
-          html += `<tr><td style="text-align:left; padding:12px;">${prod}</td><td style="font-weight:bold; font-size:1.3rem;">${qta}</td></tr>`;
+        for (const r of Object.values(riepilogo)) {
+          if (r.qta > 0) {
+            totaleEuro += r.qta * window.getPrezzo(r.nome, r.id);
+            html += `<tr><td style="text-align:left; padding:12px;">${esc(r.nome)}</td><td style="font-weight:bold; font-size:1.3rem;">${r.qta}</td></tr>`;
+          }
         }
+
+        html += `</table></div><h3 style="text-align:right; color:#2e7d32;">Totale: ${euro(totaleEuro)}</h3>
+                 <button class="btn-dark" onclick="mostraDettaglioPerPersone()">Dettaglio per Singola Persona</button>`;
+
+        document.getElementById("contenuto-riepilogo").innerHTML = html;
+        document.getElementById("modal-riepilogo").style.display = "flex";
+      } catch (e) {
+        mostraStatus("Errore caricamento riepilogo: " + e.message, true);
       }
-
-      html += `</table></div><h3 style="text-align:right; color:#2e7d32;">Totale: € ${totaleEuro}</h3>
-               <button class="btn-dark" onclick="mostraDettaglioPerPersone()">Dettaglio per Singola Persona</button>`;
-
-      document.getElementById("contenuto-riepilogo").innerHTML = html;
-      document.getElementById("modal-riepilogo").style.display = "flex";
     };
 
-    // 4. DETTAGLIO PER PERSONA CON VARIAZIONE (+ / -)
+    // ============ DETTAGLIO PER PERSONA CON VARIAZIONE (+ / -) ============
     window.mostraDettaglioPerPersone = async function() {
-      document.getElementById("modal-riepilogo").style.display = "none";
       const fam = document.getElementById("nome").value;
-      const q = query(collection(db, "prenotazioni"), where("nome", "==", fam));
-      const snapshot = await getDocs(q);
+      if (!fam) return mostraStatus("Seleziona una famiglia!", true);
 
-      const personeMap = {};
-      snapshot.forEach(doc => {
-        const d = doc.data();
-        const notaOriginale = (d.nota || "").trim();
-        const chiave = notaOriginale ? notaOriginale.toLowerCase() : "generale";
-        if (!personeMap[chiave]) {
-          personeMap[chiave] = { label: notaOriginale ? capitalizzaNome(notaOriginale) : "Generale", prodotti: {} };
+      try {
+        document.getElementById("modal-riepilogo").style.display = "none";
+        const snapshot = await getDocs(query(collection(db, "prenotazioni"), where("nome", "==", fam)));
+
+        const personeMap = {};
+        snapshot.forEach(d => {
+          const x = d.data();
+          const notaOriginale = (x.nota || "").trim();
+          const chiave = chiavePersona(notaOriginale);
+          if (!personeMap[chiave]) {
+            personeMap[chiave] = { label: notaOriginale ? capitalizzaNome(notaOriginale) : "Generale", prodotti: {} };
+          }
+          // Identifica il prodotto per id (se manca nei vecchi dati, ripiega sul nome)
+          let pId = x.prodottoId;
+          if (!pId) pId = prodottiGlobal.find(p => p.tipo === x.prodotto)?.id || x.prodotto;
+          const pv = personeMap[chiave].prodotti;
+          if (!pv[pId]) pv[pId] = { nome: x.prodotto, qta: 0 };
+          pv[pId].qta += Number(x.quantita) || 0;
+        });
+
+        let html = "";
+        for (const { label: persona, prodotti } of Object.values(personeMap)) {
+          const righe = Object.entries(prodotti).filter(([_, v]) => v.qta > 0);
+          if (righe.length === 0) continue;
+
+          let totPers = 0;
+          html += `<div class="card-persona"><h4>👤 ${esc(persona)}</h4><div class="table-wrapper"><table style="width:100%;"><tr style="font-size:0.8rem; background:#f0f0f0;"><th style="color:black; background:#eee; text-align:left;">Prodotto</th><th style="color:black; background:#eee; width:15%;">Att.</th><th style="color:green; background:#eee; width:20%;">+</th><th style="color:red; background:#eee; width:20%;">-</th></tr>`;
+
+          for (const [pId, v] of righe) {
+            const nomeAttuale = prodottiGlobal.find(x => x.id === pId)?.tipo || v.nome;
+            totPers += v.qta * window.getPrezzo(nomeAttuale, pId);
+            html += `<tr><td style="text-align:left;">${esc(nomeAttuale)}</td><td><strong>${v.qta}</strong></td>
+                     <td><input type="number" class="in-add" data-pers="${esc(persona)}" data-prod="${esc(nomeAttuale)}" data-id="${esc(pId)}" value="0" min="0"></td>
+                     <td><input type="number" class="in-sub" data-pers="${esc(persona)}" data-prod="${esc(nomeAttuale)}" data-id="${esc(pId)}" data-current="${v.qta}" value="0" min="0" max="${v.qta}"></td></tr>`;
+          }
+          html += `</table></div><div style="text-align:right; margin-top:10px; font-weight:bold; color:#2e7d32;">Parziale: ${euro(totPers)}</div></div>`;
         }
-        personeMap[chiave].prodotti[d.prodotto] = (personeMap[chiave].prodotti[d.prodotto] || 0) + d.quantita;
-      });
 
-      let html = "";
-      for (const { label: persona, prodotti } of Object.values(personeMap)) {
-        const prodottiConGiacenza = Object.entries(prodotti).filter(([_, qta]) => qta > 0);
-        if (prodottiConGiacenza.length === 0) continue;
-
-        let totPers = 0;
-        html += `<div class="card-persona"><h4>👤 ${persona}</h4><div class="table-wrapper"><table style="width:100%;"><tr style="font-size:0.8rem; background:#f0f0f0;"><th style="color:black; background:#eee; text-align:left;">Prodotto</th><th style="color:black; background:#eee; width:15%;">Att.</th><th style="color:green; background:#eee; width:20%;">+</th><th style="color:red; background:#eee; width:20%;">-</th></tr>`;
-        
-        for (const [prod, qta] of prodottiConGiacenza) {
-          totPers += (qta * window.getPrezzo(prod));
-          const pObj = prodottiGlobal.find(x => x.tipo === prod);
-          const pId = pObj ? pObj.id : prod;
-          html += `<tr><td style="text-align:left;">${prod}</td><td><strong>${qta}</strong></td>
-                   <td><input type="number" class="in-add" data-pers="${persona}" data-prod="${prod}" data-id="${pId}" value="0" min="0"></td>
-                   <td><input type="number" class="in-sub" data-pers="${persona}" data-prod="${prod}" data-id="${pId}" data-current="${qta}" value="0" min="0" max="${qta}"></td></tr>`;
-        }
-        html += `</table></div><div style="text-align:right; margin-top:10px; font-weight:bold; color:#2e7d32;">Parziale: € ${totPers}</div></div>`;
+        document.getElementById("contenuto-dettaglio").innerHTML = html || "Nessun dato trovato per questa famiglia.";
+        document.getElementById("modal-dettaglio-persone").style.display = "flex";
+      } catch (e) {
+        mostraStatus("Errore caricamento dettaglio: " + e.message, true);
       }
-
-      document.getElementById("contenuto-dettaglio").innerHTML = html || "Nessun dato trovato per questa famiglia.";
-      document.getElementById("modal-dettaglio-persone").style.display = "flex";
     };
 
-    // 5. ATTIVAZIONE NOTIFICHE PUSH DISPOSITIVO
+    window.preparaModificaDettaglio = function() {
+      const fam = document.getElementById("nome").value;
+      const modifiche = [];
+      const deltaPerProdotto = {};
+      let riepilogoTesto = `⚠️ MODIFICA RICHIESTA (${fam})\n\n`;
+
+      for (const elAdd of document.querySelectorAll("#contenuto-dettaglio .in-add")) {
+        const riga = elAdd.closest("tr");
+        const elSub = riga.querySelector(".in-sub");
+        const add = Math.max(0, parseInt(elAdd.value) || 0);
+        const sub = Math.max(0, parseInt(elSub.value) || 0);
+        const disponibile = parseInt(elSub.dataset.current) || 0;
+        const prod = elAdd.dataset.prod;
+        const pers = elAdd.dataset.pers;
+        const pId = elAdd.dataset.id;
+
+        if (sub > disponibile) {
+          return mostraStatus(`Non puoi togliere ${sub} ${prod} a ${pers}: ne ha solo ${disponibile}.`, true);
+        }
+
+        const netto = add - sub;
+        if (netto !== 0) {
+          modifiche.push({ nome: fam, prodottoId: pId, prodotto: prod, quantita: netto, nota: pers });
+          deltaPerProdotto[pId] = (deltaPerProdotto[pId] || 0) + netto;
+          riepilogoTesto += `• ${pers} | ${prod}: ${netto > 0 ? '+' : ''}${netto}\n`;
+        }
+      }
+
+      if (modifiche.length === 0) return mostraStatus("Nessuna modifica inserita.", true);
+
+      // Controllo anticipato sulla disponibilità complessiva (quello definitivo è nella transazione)
+      for (const [pId, delta] of Object.entries(deltaPerProdotto)) {
+        if (delta <= 0) continue;
+        const p = prodottiGlobal.find(x => x.id === pId);
+        const giacenza = p ? (Number(p.giacenza) || 0) : 0;
+        if (delta > giacenza) {
+          return mostraStatus(`${p ? p.tipo : pId}: ne servono ${delta} in più ma ne restano solo ${giacenza}.`, true);
+        }
+      }
+
+      document.getElementById("modal-dettaglio-persone").style.display = "none";
+      window.payloadTemporaneo = modifiche;
+      window.tipoOperazione = "modifica";
+      document.getElementById("titoloModal").innerText = "Conferma Modifiche";
+      document.getElementById("riepilogoCorpo").innerText = riepilogoTesto;
+      document.getElementById("modal").style.display = "flex";
+    };
+
+    // ============ NOTIFICHE PUSH DISPOSITIVO ============
     window.attivaNotifichePush = async function() {
-      if(!messaging && !serviceWorkerReady) return mostraStatus("Le notifiche non sono supportate su questo browser.", true);
+      if (!messaging && !serviceWorkerReady) return mostraStatus("Le notifiche non sono supportate su questo browser.", true);
       try {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
-          // Segna SUBITO il permesso come concesso: se qualcosa fallisce dopo
-          // (token, scrittura su Firestore, rete...) il bottone non deve ricomparire,
-          // perché il permesso del browser è comunque già stato dato.
           localStorage.setItem("notificheAbilitate", "1");
 
           if (messaging) {
             try {
-              const token = await getToken(messaging, { 
+              const token = await getToken(messaging, {
                 vapidKey: "BJnvFe-amLgnp89cNI2k1XAmMw5cMvy9yzEMhIAGb9pwHlRCEUKQWmkKyNnBeo3TtDVgToa6Le2daJT4RzgX9u0",
                 serviceWorkerRegistration: swRegistration
               });
@@ -646,14 +834,13 @@
         } else {
           mostraStatus("Permesso per le notifiche negato.", true);
         }
-      } catch (e) { 
-        mostraStatus("Errore durante l'attivazione notifiche: " + e.message, true); 
+      } catch (e) {
+        mostraStatus("Errore durante l'attivazione notifiche: " + e.message, true);
       }
 
-      aggiornaVisibilitaBottoneNotifiche();
+      window.aggiornaVisibilitaBottoneNotifiche();
     };
 
-    // Nasconde il bottone se il permesso è già stato concesso o negato in precedenza
     window.aggiornaVisibilitaBottoneNotifiche = function() {
       const btn = document.getElementById("btn-notifiche");
       if (!btn) return;
@@ -662,11 +849,8 @@
       const permessoConcesso = ("Notification" in window) && Notification.permission === "granted";
       const permessoNegato = ("Notification" in window) && Notification.permission === "denied";
 
-      // Se il permesso risulta concesso, sincronizza sempre il flag salvato
       if (permessoConcesso) localStorage.setItem("notificheAbilitate", "1");
 
-      // Nasconde il bottone se: già abilitato in passato su questo dispositivo,
-      // oppure il permesso è già stato concesso o negato dal browser
       if (giaAbilitateSalvato || permessoConcesso || permessoNegato || !("Notification" in window)) {
         btn.style.display = "none";
       } else {
@@ -675,7 +859,7 @@
     };
 
     // ================== ADMIN PANEL ==================
-    
+
     window.entraPannelloAdmin = function() {
       const input = document.getElementById("admin-password-input");
       input.value = "";
@@ -693,7 +877,7 @@
         document.getElementById("modal-admin-login").style.display = "none";
         document.getElementById("main-content").style.display = "none";
         document.getElementById("admin-panel").style.display = "block";
-        caricaProdottiAdmin();
+        window.caricaProdottiAdmin();
       } else {
         mostraStatus("Password errata!", true);
       }
@@ -706,34 +890,44 @@
 
     window.caricaProdottiAdmin = async function() {
       try {
-        const docs = await getDocs(collection(db, "prodotti"));
-        const prodotti = [];
+        const [docs, configSnap] = await Promise.all([
+          getDocs(collection(db, "prodotti")),
+          getDoc(doc(db, "prodotti", "_config"))
+        ]);
+        let prodotti = [];
         docs.forEach(d => {
-          if (d.id !== "_config") {
-            prodotti.push({ id: d.id, ...d.data() });
-          }
+          if (d.id !== "_config") prodotti.push({ id: d.id, ...d.data() });
         });
+        // Stesso ordine mostrato agli utenti: così "Ordine Vis." riflette la realtà
+        // e salvare i prezzi non azzera l'ordine personalizzato.
+        prodotti = ordinaProdotti(prodotti, configSnap.exists() ? configSnap.data().ordine : null);
 
         let html = '<h3>Prodotti Attuali</h3>';
         if (prodotti.length === 0) {
           html += '<p>Nessun prodotto trovato. Aggiungine uno qui sotto.</p>';
         } else {
-          html += '<div class="table-wrapper"><table class="admin-table"><tr><th>Nome</th><th>Giacenza</th><th>Aggiungi/Togli scorta</th><th>Prezzo (€)</th><th>Ordini</th><th>Ordine Vis.</th><th>Azioni</th></tr>';
+          html += '<div class="table-wrapper"><table class="admin-table"><tr><th>Nome</th><th>Giacenza iniziale</th><th>Giacenza attuale</th><th>Ordinati</th><th>Aggiungi/Togli scorta</th><th>Prezzo (€)</th><th>Ordine Vis.</th><th>Azioni</th></tr>';
           prodotti.forEach((p, idx) => {
+            const giac = Number(p.giacenza) || 0;
+            const ord = Number(p.ordinati) || 0;
+            // Prodotti creati prima di questa versione: iniziale = attuale + ordinati
+            const iniziale = (p.iniziale !== undefined && p.iniziale !== null) ? Number(p.iniziale) : (giac + ord);
             html += `<tr>
-              <td>${p.tipo}</td>
-              <td id="giacenza-attuale-${p.id}">${p.giacenza}</td>
+              <td>${esc(p.tipo)}</td>
+              <td><strong>${iniziale}</strong></td>
+              <td>${giac}</td>
+              <td>${ord}</td>
               <td>
-                <input type="number" id="scorta-${p.id}" placeholder="es: 20 o -5" style="width:80px;">
-                <button class="btn-secondary" style="width:auto; padding:6px 10px;" onclick="aggiungiScortaAdmin('${p.id}', '${p.tipo.replace(/'/g, "\\'")}')">OK</button>
+                <input type="number" id="scorta-${esc(p.id)}" placeholder="es: 20 o -5" style="width:80px;">
+                <button class="btn-secondary" style="width:auto; padding:6px 10px;" data-id="${esc(p.id)}" onclick="aggiungiScortaAdmin(this.dataset.id)">OK</button>
               </td>
-              <td><input type="number" id="prezzo-${p.id}" value="${p.prezzo || 0}" min="0" step="0.5" style="width:70px;"></td>
-              <td>${p.ordinati || 0}</td>
-              <td><input type="number" id="sort-${p.id}" value="${idx}" min="0" style="width:60px;"></td>
-              <td><button class="btn-secondary" onclick="eliminaProdottoAdmin('${p.id}')">Elimina</button></td>
+              <td><input type="number" id="prezzo-${esc(p.id)}" value="${Number(p.prezzo) || 0}" min="0" step="0.5" style="width:70px;"></td>
+              <td><input type="number" id="sort-${esc(p.id)}" value="${idx}" min="0" style="width:60px;"></td>
+              <td><button class="btn-secondary" data-id="${esc(p.id)}" onclick="eliminaProdottoAdmin(this.dataset.id)">Elimina</button></td>
             </tr>`;
           });
           html += '</table></div>';
+          html += '<p class="nota-admin">La <strong>giacenza iniziale</strong> è il totale caricato da te (alla creazione + scorte aggiunte/tolte). Vale sempre: iniziale = attuale + ordinati.</p>';
         }
 
         html += `<h3 style="margin-top:2rem;">Aggiungi Nuovo Prodotto</h3>
@@ -751,223 +945,370 @@
           <p>Modifica i numeri nella tabella sopra (ordine e/o prezzo) e clicca qui per salvare:</p>
           <button onclick="salvaOrdineAdmin()" class="btn-dark" style="width:auto; margin-top:1rem;">💾 Salva Ordine e Prezzi</button>`;
 
+        html += `<div id="sezione-famiglie-admin"><p>Caricamento famiglie...</p></div>`;
+
         html += `<h3 style="margin-top:2rem;">Riepilogo Ordini per Famiglia</h3>
           <p>Vedi tutti gli ordini raggruppati per famiglia/padrino, con prodotti, quantità e totale — pronto per la stampa in PDF.</p>
           <button onclick="mostraRiepilogoFamiglieAdmin()" class="btn-dark" style="width:auto; margin-top:1rem;">📋 Apri Riepilogo per Famiglia</button>`;
 
         html += `<h3 style="margin-top:2rem;">Reset Completo</h3>
-          <p style="color:#d32f2f; font-weight:bold;">⚠️ Questa azione eliminerà TUTTI i dati (prodotti e prenotazioni)!</p>
+          <p style="color:#d32f2f; font-weight:bold;">⚠️ Questa azione eliminerà TUTTI i prodotti e TUTTE le prenotazioni! (L'elenco delle famiglie resta.)</p>
           <button onclick="resetCompletoAdmin()" class="btn-warning" style="width:auto; margin-top:1rem;">🗑️ Reset Completo</button>`;
 
         document.getElementById("admin-content").innerHTML = html;
-      } catch(e) {
+        window.caricaFamiglieAdmin();
+      } catch (e) {
         mostraStatus("Errore caricamento admin: " + e.message, true);
       }
     };
 
     window.aggiungiProdottoAdmin = async function() {
-      const nome = document.getElementById("new-prod-name").value.trim();
+      const nome = document.getElementById("new-prod-name").value.trim().replace(/\s+/g, " ");
       const qta = parseInt(document.getElementById("new-prod-qta").value) || 0;
       const prezzo = parseFloat(document.getElementById("new-prod-prezzo").value) || 0;
 
       if (!nome) return mostraStatus("Inserisci il nome del prodotto!", true);
+      if (qta < 0 || prezzo < 0) return mostraStatus("Giacenza e prezzo non possono essere negativi.", true);
+      if (prodottiGlobal.some(p => String(p.tipo).toLowerCase() === nome.toLowerCase())) {
+        return mostraStatus("Esiste già un prodotto con questo nome.", true);
+      }
 
       try {
-        let newId = nome
-          .trim()
-          .toLowerCase()
-          .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // rimuove accenti
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, "");
-        if (!newId) newId = `prod_${Date.now()}`;
-
-        // Se esiste già un prodotto con questo ID, aggiunge un suffisso per evitare conflitti
+        let newId = slug(nome);
         const esistente = await getDoc(doc(db, "prodotti", newId));
-        if (esistente.exists()) {
-          newId = `${newId}-${Date.now()}`;
-        }
+        if (esistente.exists() || newId === "_config") newId = `${newId}-${Date.now()}`;
 
         await setDoc(doc(db, "prodotti", newId), {
           tipo: nome,
           giacenza: qta,
+          iniziale: qta,
           prezzo: prezzo,
           ordinati: 0
         });
         mostraStatus("Prodotto aggiunto!");
-        document.getElementById("new-prod-name").value = "";
-        document.getElementById("new-prod-qta").value = "10";
-        document.getElementById("new-prod-prezzo").value = "0";
-        caricaProdottiAdmin();
-      } catch(e) {
+        window.caricaProdottiAdmin();
+      } catch (e) {
         mostraStatus("Errore: " + e.message, true);
       }
     };
 
-    window.aggiungiScortaAdmin = async function(id, nomeProdotto) {
+    // Aggiunge/toglie scorta in modo ATOMICO (transazione): un ordine in arrivo nello
+    // stesso istante non viene più perso. Aggiorna anche la giacenza iniziale.
+    window.aggiungiScortaAdmin = async function(id) {
       const input = document.getElementById(`scorta-${id}`);
       const delta = parseInt(input.value) || 0;
       if (delta === 0) return mostraStatus("Inserisci una quantità diversa da zero (es: 20 per aggiungere, -5 per togliere).", true);
 
       try {
         const ref = doc(db, "prodotti", id);
-        const snap = await getDoc(ref);
-        if (!snap.exists()) return mostraStatus("Prodotto non trovato.", true);
+        const esito = await runTransaction(db, async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists()) throw new Error("Prodotto non trovato.");
+          const d = snap.data();
+          const vecchia = Number(d.giacenza) || 0;
+          const nuova = vecchia + delta;
+          if (nuova < 0) throw new Error(`Non puoi togliere ${Math.abs(delta)}: ci sono solo ${vecchia} pezzi.`);
+          const inizialeAttuale = (d.iniziale !== undefined && d.iniziale !== null)
+            ? Number(d.iniziale)
+            : vecchia + (Number(d.ordinati) || 0);
+          tx.update(ref, { giacenza: nuova, iniziale: inizialeAttuale + delta });
+          return { vecchia, nuova, nome: d.tipo };
+        });
 
-        const vecchia = snap.data().giacenza || 0;
-        const nuova = vecchia + delta;
-        if (nuova < 0) return mostraStatus(`Non puoi togliere ${Math.abs(delta)}: ci sono solo ${vecchia} pezzi.`, true);
+        mostraStatus(`Giacenza aggiornata: ${esito.vecchia} → ${esito.nuova}`);
 
-        await setDoc(ref, { giacenza: nuova }, { merge: true });
-        input.value = "";
-        mostraStatus(`Giacenza aggiornata: ${vecchia} → ${nuova}`);
+        const notif = calcolaNotificaGiacenza(esito.nome, esito.vecchia, esito.nuova);
+        if (notif) window.inviaPushNotifica(notif.titolo, notif.corpo);
 
-        // Se la modifica è una diminuzione che attraversa una soglia, notifica comunque
-        const notif = calcolaNotificaGiacenza(nomeProdotto, vecchia, nuova);
-        if (notif) inviaPushNotifica(notif.titolo, notif.corpo);
-
-        caricaProdottiAdmin();
-      } catch(e) {
+        window.caricaProdottiAdmin();
+      } catch (e) {
         mostraStatus("Errore: " + e.message, true);
       }
     };
 
     window.eliminaProdottoAdmin = async function(id) {
-      if (confirm("Sei sicuro di voler eliminare questo prodotto?")) {
-        try {
-          await deleteDoc(doc(db, "prodotti", id));
-          mostraStatus("Prodotto eliminato!");
-          caricaProdottiAdmin();
-        } catch(e) {
-          mostraStatus("Errore: " + e.message, true);
+      try {
+        // Non si elimina un prodotto già prenotato: i prezzi/totali e le modifiche si romperebbero
+        const haOrdini = await getDocs(query(collection(db, "prenotazioni"), where("prodottoId", "==", id), limit(1)));
+        if (!haOrdini.empty) {
+          return mostraStatus("Questo prodotto ha prenotazioni: non si può eliminare (usa il Reset Completo per ripartire da zero).", true);
         }
+        if (!confirm("Sei sicuro di voler eliminare questo prodotto?")) return;
+        await deleteDoc(doc(db, "prodotti", id));
+        mostraStatus("Prodotto eliminato!");
+        window.caricaProdottiAdmin();
+      } catch (e) {
+        mostraStatus("Errore: " + e.message, true);
       }
     };
 
-    // RIEPILOGO ORDINI PER FAMIGLIA (PADRINI) - stampabile in PDF
+    // ---------- GESTIONE FAMIGLIE (ADMIN) ----------
+    async function contaPezziFamiglia(nome) {
+      const snap = await getDocs(query(collection(db, "prenotazioni"), where("nome", "==", nome)));
+      let tot = 0;
+      snap.forEach(d => { tot += Number(d.data().quantita) || 0; });
+      return tot;
+    }
+
+    window.caricaFamiglieAdmin = async function() {
+      const box = document.getElementById("sezione-famiglie-admin");
+      if (!box) return;
+      try {
+        const [famSnap, prenSnap] = await Promise.all([
+          getDocs(collection(db, "famiglie")),
+          getDocs(collection(db, "prenotazioni"))
+        ]);
+
+        const pezzi = {};
+        prenSnap.forEach(d => {
+          const x = d.data();
+          pezzi[x.nome] = (pezzi[x.nome] || 0) + (Number(x.quantita) || 0);
+        });
+
+        const famiglie = famSnap.docs
+          .map(d => ({ id: d.id, nome: d.data().nome || d.id }))
+          .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+
+        let html = `<h3 style="margin-top:2rem;">Famiglie Padrini</h3>
+          <p>Puoi rinominare o eliminare solo le famiglie <strong>senza ordini</strong>. Dopo un Reset Completo sono di nuovo tutte modificabili.</p>`;
+
+        if (famiglie.length === 0) {
+          html += '<p>Nessuna famiglia presente. Aggiungine una qui sotto.</p>';
+        } else {
+          html += '<div class="table-wrapper"><table class="admin-table"><tr><th>Famiglia</th><th>Pezzi ordinati</th><th>Azioni</th></tr>';
+          famiglie.forEach(f => {
+            const n = pezzi[f.nome] || 0;
+            if (n > 0) {
+              html += `<tr><td style="text-align:left;">${esc(f.nome)}</td><td>${n}</td><td><span class="bloccata">🔒 Ha ordini</span></td></tr>`;
+            } else {
+              html += `<tr>
+                <td><input type="text" id="fam-nome-${esc(f.id)}" value="${esc(f.nome)}" style="width:160px;"></td>
+                <td>0</td>
+                <td>
+                  <button class="btn-secondary" data-id="${esc(f.id)}" onclick="rinominaFamigliaAdmin(this.dataset.id)">Salva nome</button>
+                  <button class="btn-warning" data-id="${esc(f.id)}" onclick="eliminaFamigliaAdmin(this.dataset.id)">Elimina</button>
+                </td>
+              </tr>`;
+            }
+          });
+          html += '</table></div>';
+        }
+
+        html += `<div class="prod-input-group">
+            <label>Nuova famiglia:</label>
+            <input type="text" id="new-fam-name" placeholder="Es: Rossi">
+            <button onclick="aggiungiFamigliaAdmin()" style="width:auto; margin-top:1rem;">Aggiungi Famiglia</button>
+          </div>`;
+
+        box.innerHTML = html;
+      } catch (e) {
+        box.innerHTML = `<p style="color:#d32f2f;">Errore caricamento famiglie: ${esc(e.message)}</p>`;
+      }
+    };
+
+    const nomeFamigliaPulito = (s) => String(s || "").trim().replace(/\s+/g, " ");
+    const nomeFamigliaEsiste = (nome, escludiId) =>
+      famiglieGlobal.some(f => f.id !== escludiId && f.nome.toLowerCase() === nome.toLowerCase());
+
+    window.aggiungiFamigliaAdmin = async function() {
+      const nome = nomeFamigliaPulito(document.getElementById("new-fam-name").value);
+      if (!nome) return mostraStatus("Inserisci il nome della famiglia!", true);
+      if (nomeFamigliaEsiste(nome)) return mostraStatus("Esiste già una famiglia con questo nome.", true);
+
+      try {
+        let id = slug(nome);
+        const esistente = await getDoc(doc(db, "famiglie", id));
+        if (esistente.exists()) id = `${id}-${Date.now()}`;
+        await setDoc(doc(db, "famiglie", id), { nome });
+        mostraStatus("Famiglia aggiunta!");
+        window.caricaFamiglieAdmin();
+      } catch (e) {
+        mostraStatus("Errore: " + e.message, true);
+      }
+    };
+
+    window.rinominaFamigliaAdmin = async function(id) {
+      const nuovo = nomeFamigliaPulito(document.getElementById(`fam-nome-${id}`)?.value);
+      if (!nuovo) return mostraStatus("Il nome non può essere vuoto.", true);
+
+      try {
+        const ref = doc(db, "famiglie", id);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return mostraStatus("Famiglia non trovata.", true);
+        const vecchio = snap.data().nome;
+
+        if (nuovo === vecchio) return mostraStatus("Il nome è invariato.", true);
+        if (nomeFamigliaEsiste(nuovo, id)) return mostraStatus("Esiste già una famiglia con questo nome.", true);
+
+        // Controllo aggiornato al momento del click (non sui dati mostrati a schermo)
+        if (await contaPezziFamiglia(vecchio) > 0) {
+          window.caricaFamiglieAdmin();
+          return mostraStatus(`${vecchio} ha già degli ordini: non si può rinominare.`, true);
+        }
+
+        await setDoc(ref, { nome: nuovo }, { merge: true });
+        mostraStatus("Famiglia rinominata!");
+        window.caricaFamiglieAdmin();
+      } catch (e) {
+        mostraStatus("Errore: " + e.message, true);
+      }
+    };
+
+    window.eliminaFamigliaAdmin = async function(id) {
+      try {
+        const ref = doc(db, "famiglie", id);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return mostraStatus("Famiglia non trovata.", true);
+        const nome = snap.data().nome;
+
+        if (await contaPezziFamiglia(nome) > 0) {
+          window.caricaFamiglieAdmin();
+          return mostraStatus(`${nome} ha già degli ordini: non si può eliminare.`, true);
+        }
+        if (!confirm(`Eliminare la famiglia "${nome}"?`)) return;
+
+        await deleteDoc(ref);
+        mostraStatus("Famiglia eliminata!");
+        window.caricaFamiglieAdmin();
+      } catch (e) {
+        mostraStatus("Errore: " + e.message, true);
+      }
+    };
+
+    // ---------- RIEPILOGO ORDINI PER FAMIGLIA (stampabile in PDF) ----------
     window.mostraRiepilogoFamiglieAdmin = async function() {
       try {
         const snapshot = await getDocs(collection(db, "prenotazioni"));
 
-        // Raggruppa per famiglia -> prodotto -> quantità totale
+        // famiglia -> prodotto -> {nome, id, qta}
         const famiglie = {};
         snapshot.forEach(d => {
-          const dati = d.data();
-          const fam = dati.nome || "Sconosciuto";
+          const x = d.data();
+          const fam = x.nome || "Sconosciuto";
           if (!famiglie[fam]) famiglie[fam] = {};
-          famiglie[fam][dati.prodotto] = (famiglie[fam][dati.prodotto] || 0) + dati.quantita;
+          const k = x.prodottoId || x.prodotto;
+          if (!famiglie[fam][k]) famiglie[fam][k] = { nome: x.prodotto, id: x.prodottoId, qta: 0 };
+          famiglie[fam][k].qta += Number(x.quantita) || 0;
         });
 
-        const nomiFamiglie = Object.keys(famiglie).sort((a, b) => a.localeCompare(b));
+        const nomiFamiglie = Object.keys(famiglie).sort((a, b) => a.localeCompare(b, 'it'));
 
         let html = `<p style="text-align:center; color:#666; margin-bottom:20px;">Generato il ${new Date().toLocaleDateString('it-IT')}</p>`;
+        let almenoUna = false;
 
-        if (nomiFamiglie.length === 0) {
-          html += "<p>Nessun ordine trovato.</p>";
-        } else {
-          nomiFamiglie.forEach(fam => {
-            const prodotti = Object.entries(famiglie[fam]).filter(([_, qta]) => qta > 0);
-            if (prodotti.length === 0) return;
+        nomiFamiglie.forEach(fam => {
+          const prodotti = Object.values(famiglie[fam]).filter(v => v.qta > 0);
+          if (prodotti.length === 0) return;
+          almenoUna = true;
 
-            let totQuantita = 0;
-            let totSoldi = 0;
+          let totQuantita = 0;
+          let totSoldi = 0;
 
-            html += `<div class="card-persona famiglia-stampa">
-                       <h4>👤 ${fam}</h4>
-                       <div class="table-wrapper"><table style="width:100%;">
-                         <tr style="font-size:0.72rem; background:#f0f0f0;">
-                           <th style="text-align:left; color:black; background:#eee;">Prodotto</th>
-                           <th style="color:black; background:#eee;">Quantità</th>
-                           <th style="color:black; background:#eee;">Consegnati</th>
-                           <th style="color:black; background:#eee;">Etich. Panettone</th>
-                           <th style="color:black; background:#eee;">Creme</th>
-                           <th style="color:black; background:#eee;">Etich. Vasetti</th>
-                         </tr>`;
-
-            prodotti.forEach(([prod, qta]) => {
-              totQuantita += qta;
-              totSoldi += qta * window.getPrezzo(prod);
-              html += `<tr>
-                         <td style="text-align:left;">${prod}</td>
-                         <td style="text-align:center;">${qta}</td>
-                         <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
-                         <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
-                         <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
-                         <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
+          html += `<div class="card-persona famiglia-stampa">
+                     <h4>👤 ${esc(fam)}</h4>
+                     <div class="table-wrapper"><table style="width:100%;">
+                       <tr style="font-size:0.72rem; background:#f0f0f0;">
+                         <th style="text-align:left; color:black; background:#eee;">Prodotto</th>
+                         <th style="color:black; background:#eee;">Quantità</th>
+                         <th style="color:black; background:#eee;">Consegnati</th>
+                         <th style="color:black; background:#eee;">Etich. Panettone</th>
+                         <th style="color:black; background:#eee;">Creme</th>
+                         <th style="color:black; background:#eee;">Etich. Vasetti</th>
                        </tr>`;
-            });
 
-            html += `<tr style="background:#e8f5e9; font-weight:bold;">
-                       <td style="text-align:left;">Totale</td>
-                       <td style="text-align:center;">${totQuantita}</td>
-                       <td style="text-align:left; font-weight:normal; font-size:0.68rem;">Totale scatole:</td>
-                       <td style="text-align:left; font-weight:normal; font-size:0.68rem;">Totale laccetti:</td>
-                       <td style="text-align:left; font-weight:normal; font-size:0.68rem;">Totale adesivi:</td>
-                       <td style="text-align:center;">€ ${totSoldi.toFixed(2)}</td>
+          prodotti.forEach(v => {
+            totQuantita += v.qta;
+            totSoldi += v.qta * window.getPrezzo(v.nome, v.id);
+            html += `<tr>
+                       <td style="text-align:left;">${esc(v.nome)}</td>
+                       <td style="text-align:center;">${v.qta}</td>
+                       <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
+                       <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
+                       <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
+                       <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
                      </tr>`;
-
-            html += `</table></div>
-                     </div>`;
           });
-        }
+
+          html += `<tr style="background:#e8f5e9; font-weight:bold;">
+                     <td style="text-align:left;">Totale</td>
+                     <td style="text-align:center;">${totQuantita}</td>
+                     <td style="text-align:left; font-weight:normal; font-size:0.68rem;">Totale scatole:</td>
+                     <td style="text-align:left; font-weight:normal; font-size:0.68rem;">Totale laccetti:</td>
+                     <td style="text-align:left; font-weight:normal; font-size:0.68rem;">Totale adesivi:</td>
+                     <td style="text-align:center;">${euro(totSoldi)}</td>
+                   </tr>`;
+
+          html += `</table></div></div>`;
+        });
+
+        if (!almenoUna) html += "<p>Nessun ordine trovato.</p>";
 
         document.getElementById("contenuto-stampa-famiglie").innerHTML = html;
         document.getElementById("modal-riepilogo-famiglie").style.display = "flex";
-      } catch(e) {
+      } catch (e) {
         mostraStatus("Errore caricamento riepilogo: " + e.message, true);
       }
     };
 
     window.salvaOrdineAdmin = async function() {
       try {
-        const inputs = document.querySelectorAll("[id^='sort-']");
-        const ordine = [];
-        inputs.forEach(inp => {
-          const id = inp.id.replace("sort-", "");
-          ordine[parseInt(inp.value)] = id;
+        // Ordine: si ordina per numero inserito; a parità di numero resta la posizione attuale,
+        // così due prodotti con lo stesso numero non si sovrascrivono più.
+        const righe = [...document.querySelectorAll("[id^='sort-']")].map((inp, pos) => ({
+          id: inp.id.slice("sort-".length),
+          val: parseFloat(inp.value),
+          pos
+        }));
+        righe.sort((a, b) => {
+          const va = isNaN(a.val) ? 1e9 : a.val;
+          const vb = isNaN(b.val) ? 1e9 : b.val;
+          return (va - vb) || (a.pos - b.pos);
+        });
+        const ordine = righe.map(r => r.id);
+
+        const batch = writeBatch(db);
+        batch.set(doc(db, "prodotti", "_config"), { ordine });
+
+        document.querySelectorAll("[id^='prezzo-']").forEach(inp => {
+          const id = inp.id.slice("prezzo-".length);
+          const prezzo = Math.max(0, parseFloat(inp.value) || 0);
+          batch.update(doc(db, "prodotti", id), { prezzo });
         });
 
-        await setDoc(doc(db, "prodotti", "_config"), {
-          ordine: ordine.filter(x => x)
-        });
-
-        // Salva anche i prezzi modificati per ciascun prodotto
-        const prezzoInputs = document.querySelectorAll("[id^='prezzo-']");
-        for (const inp of prezzoInputs) {
-          const id = inp.id.replace("prezzo-", "");
-          const prezzo = parseFloat(inp.value) || 0;
-          await setDoc(doc(db, "prodotti", id), { prezzo: prezzo }, { merge: true });
-        }
-
+        await batch.commit();
         mostraStatus("Ordine e prezzi salvati!");
-      } catch(e) {
+        window.caricaProdottiAdmin();
+      } catch (e) {
         mostraStatus("Errore: " + e.message, true);
       }
     };
 
+    async function svuotaCollezione(nome) {
+      const snap = await getDocs(collection(db, nome));
+      for (let i = 0; i < snap.docs.length; i += 400) {
+        const batch = writeBatch(db);
+        snap.docs.slice(i, i + 400).forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    }
+
     window.resetCompletoAdmin = async function() {
-      if (!confirm("⚠️ ATTENZIONE! Eliminerai TUTTI i dati. Sei VERAMENTE sicuro?")) return;
+      if (!confirm("⚠️ ATTENZIONE! Eliminerai TUTTI i prodotti e le prenotazioni. Sei VERAMENTE sicuro?")) return;
       if (!confirm("Ultima conferma: elimino VERAMENTE tutto?")) return;
 
       try {
-        // Elimina tutti i prodotti
-        const prodDocs = await getDocs(collection(db, "prodotti"));
-        for (const d of prodDocs.docs) {
-          await deleteDoc(d.ref);
-        }
-
-        // Elimina tutte le prenotazioni
-        const prenDocs = await getDocs(collection(db, "prenotazioni"));
-        for (const d of prenDocs.docs) {
-          await deleteDoc(d.ref);
-        }
-
-        mostraStatus("Database completamente resettato!");
-        setTimeout(() => caricaProdottiAdmin(), 1000);
-      } catch(e) {
+        await svuotaCollezione("prenotazioni");
+        await svuotaCollezione("prodotti"); // include anche _config (ordine visualizzazione)
+        mostraStatus("Database resettato! Le famiglie sono rimaste.");
+        setTimeout(() => window.caricaProdottiAdmin(), 800);
+      } catch (e) {
         mostraStatus("Errore: " + e.message, true);
       }
     };
 
+    // ============ AVVIO ============
+    // Il modulo viene eseguito a pagina già caricata: il DOM è pronto.
+    window.aggiornaVisibilitaBottoneNotifiche();
   </script>
 </head>
 <body>
@@ -985,11 +1326,6 @@
       <label for="nome">👤 Famiglia Padrini:</label>
       <select id="nome" onchange="localStorage.setItem('famiglia', this.value)">
         <option value="">-- Seleziona --</option>
-        <option>Carapezza</option><option>Caruso</option><option>Di Maria</option>
-        <option>Marino</option><option>Massimino</option><option>Milanese</option>
-        <option>Murabito</option><option>Nicosia</option><option>Pantellaro</option>
-        <option>Porto</option><option>Romano</option><option>Ruiz</option>
-        <option>Scala</option><option>Tanasi</option><option>Zammillo</option>
       </select>
 
       <div id="sezione-prodotti">
@@ -1076,202 +1412,5 @@
   </div>
 </div>
 
-<script>
-  // Ripristina l'ultima famiglia selezionata
-  const fav = localStorage.getItem("famiglia");
-  if (fav) document.getElementById("nome").value = fav;
-
-  // IMPORTANTE: lo script Firebase in cima alla pagina è "type=module", quindi viene
-  // eseguito in differita (dopo il parsing di tutta la pagina). Questo script invece
-  // è uno script normale e verrebbe eseguito SUBITO, cioè PRIMA che il modulo abbia
-  // definito aggiornaVisibilitaBottoneNotifiche() - la chiamata fallirebbe in silenzio
-  // e il bottone notifiche non verrebbe mai nascosto. Aspettiamo quindi DOMContentLoaded,
-  // che scatta solo dopo che anche il modulo ha finito di essere eseguito.
-  document.addEventListener('DOMContentLoaded', function() {
-    if (window.aggiornaVisibilitaBottoneNotifiche) {
-      window.aggiornaVisibilitaBottoneNotifiche();
-    }
-  });
-
-  // Funzione intelligente per leggere quantità e nomi multipli dalla nota
-  function capitalizzaNome(str) {
-    return str
-      .trim()
-      .split(/\s+/)
-      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-      .join(" ");
-  }
-
-  function analizzaNotaEQuantita(qtaTotaleInserita, notaTesto) {
-    let testo = notaTesto.trim().replace(/,/g, ' ');
-    // Separa i numeri "attaccati" al nome, es: "2luca" -> "2 luca"
-    testo = testo.replace(/(\d+)(?=[^\s\d])/g, '$1 ');
-    const tokens = testo.split(/\s+/).filter(t => t !== "");
-
-    if (tokens.length === 0) {
-      return { errore: "Inserisci un nome nella nota." };
-    }
-
-    const contieneNumeri = tokens.some(t => /^\d+$/.test(t));
-
-    // Nessun numero nella nota: tutta la quantità inserita va al nome scritto (anche più parole)
-    if (!contieneNumeri) {
-      return { risultati: [{ quantita: qtaTotaleInserita, nota: capitalizzaNome(testo) }] };
-    }
-
-    // Con i numeri il formato è: <numero> <nome, anche di più parole> <numero> <nome> ...
-    // Solo il testo PRIMA del primo numero è ambiguo: non sappiamo a chi assegnarlo.
-    if (!/^\d+$/.test(tokens[0])) {
-      const parolePrimaDelNumero = [];
-      let k = 0;
-      while (k < tokens.length && !/^\d+$/.test(tokens[k])) { parolePrimaDelNumero.push(tokens[k]); k++; }
-      const testoAmbiguo = parolePrimaDelNumero.join(" ");
-      return { errore: `Specifica un numero prima di "${capitalizzaNome(testoAmbiguo)}" (es: "3 ${testoAmbiguo}").` };
-    }
-
-    const risultati = [];
-    let correnteQta = null;
-    let correnteNome = [];
-    let erroreNomeMancante = null;
-
-    const chiudiGruppo = () => {
-      if (correnteQta === null) return;
-      const nome = correnteNome.join(" ").trim();
-      if (!nome) {
-        erroreNomeMancante = `Manca il nome dopo il numero ${correnteQta}.`;
-        return;
-      }
-      risultati.push({ quantita: parseInt(correnteQta), nota: capitalizzaNome(nome) });
-    };
-
-    for (const token of tokens) {
-      if (erroreNomeMancante) break;
-      if (/^\d+$/.test(token)) {
-        chiudiGruppo();
-        correnteQta = token;
-        correnteNome = [];
-      } else {
-        correnteNome.push(token);
-      }
-    }
-    if (!erroreNomeMancante) chiudiGruppo();
-
-    if (erroreNomeMancante) {
-      return { errore: erroreNomeMancante };
-    }
-
-    const somma = risultati.reduce((acc, r) => acc + r.quantita, 0);
-    if (somma !== qtaTotaleInserita) {
-      return { errore: `La somma nella nota (${somma}) non coincide con la quantità inserita (${qtaTotaleInserita}). Correggi uno dei due valori.` };
-    }
-
-    return { risultati };
-  }
-
-  function confermaOrdine() {
-    const nomeFamiglia = document.getElementById("nome").value;
-    if (!nomeFamiglia) return mostraStatus("Seleziona la famiglia!", true);
-
-    const ordine = [];
-    let erroreInput = false;
-
-    document.querySelectorAll("[id^='qta-']").forEach(input => {
-      if (erroreInput) return;
-      const id = input.id.replace("qta-", "");
-      const qDefault = parseInt(input.value) || 0;
-      const nTesto = document.getElementById(`nota-${id}`)?.value.trim() || "";
-      const pNome = input.parentElement.parentElement.querySelector(".col-prod").innerText;
-
-      if (qDefault > 0 || nTesto !== "") {
-        if (qDefault <= 0) {
-          mostraStatus(`Inserisci la quantità per ${pNome}.`, true);
-          erroreInput = true;
-          return;
-        }
-        if (!nTesto) {
-          mostraStatus(`Inserisci una nota (Chi?) per ${pNome}`, true);
-          erroreInput = true;
-          return;
-        }
-
-        const esito = analizzaNotaEQuantita(qDefault, nTesto);
-
-        if (esito.errore) {
-          mostraStatus(`${pNome}: ${esito.errore}`, true);
-          erroreInput = true;
-          return;
-        }
-
-        for (const sub of esito.risultati) {
-          if (sub.quantita > 0 && sub.nota) {
-            ordine.push({ 
-              nome: nomeFamiglia, 
-              prodottoId: id, 
-              prodotto: pNome, 
-              quantita: sub.quantita, 
-              nota: sub.nota 
-            });
-          }
-        }
-      }
-    });
-
-    if (erroreInput) return;
-    if (ordine.length === 0) return mostraStatus("Nessun prodotto selezionato.", true);
-
-    window.payloadTemporaneo = ordine;
-    let text = `Nuova Prenotazione:\n`;
-    ordine.forEach(o => text += `• ${o.prodotto}: ${o.quantita} (${o.nota})\n`);
-
-    document.getElementById("titoloModal").innerText = "Conferma Ordine";
-    document.getElementById("riepilogoCorpo").innerText = text;
-    document.getElementById("modal").style.display = "flex";
-  }
-
-  function preparaModificaDettaglio() {
-    const fam = document.getElementById("nome").value;
-    const modifiche = [];
-    let riepilogoTesto = `⚠️ MODIFICA RICHIESTA\n\n`;
-    let erroreValidazione = false;
-
-    document.querySelectorAll(".card-persona").forEach(card => {
-        if (erroreValidazione) return;
-        const inAdds = card.querySelectorAll(".in-add");
-        const inSubs = card.querySelectorAll(".in-sub");
-
-        inAdds.forEach((el, i) => {
-            if (erroreValidazione) return;
-            const add = parseInt(el.value) || 0;
-            const sub = parseInt(inSubs[i].value) || 0;
-            const disponibile = parseInt(inSubs[i].dataset.current) || 0;
-            const prod = el.dataset.prod;
-            const pers = el.dataset.pers;
-
-            if (sub > disponibile) {
-                mostraStatus(`Non puoi togliere ${sub} ${prod} a ${pers}: ne ha solo ${disponibile}.`, true);
-                erroreValidazione = true;
-                return;
-            }
-
-            const netto = add - sub;
-
-            if (netto !== 0) {
-                const pId = el.dataset.id;
-                modifiche.push({ nome: fam, prodottoId: pId, prodotto: prod, quantita: netto, nota: pers });
-                riepilogoTesto += `• ${pers} | ${prod}: ${netto > 0 ? '+' : ''}${netto}\n`;
-            }
-        });
-    });
-
-    if (erroreValidazione) return;
-    if (modifiche.length === 0) return mostraStatus("Nessuna modifica inserita.", true);
-
-    document.getElementById("modal-dettaglio-persone").style.display = "none";
-    window.payloadTemporaneo = modifiche;
-    document.getElementById("titoloModal").innerText = "Conferma Modifiche";
-    document.getElementById("riepilogoCorpo").innerText = riepilogoTesto;
-    document.getElementById("modal").style.display = "flex";
-  }
-</script>
 </body>
 </html>
