@@ -1,0 +1,1534 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2e7d32">
+  <title>Ordini Post - Prenotazioni</title>
+  <style>
+    /* STILI ORIGINALI APP */
+    body {
+      font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: linear-gradient(to right, #e8f5e9, #c8e6c9);
+      margin: 0;
+      padding: 1rem;
+      color: #2e7d32;
+      min-height: 100vh;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+    }
+    header img { width: 60px; height: 60px; object-fit: contain; }
+    h2 { margin: 0; font-size: 1.5rem; color: #2e7d32; }
+
+    select, input[type="number"], input[type="text"], input[type="password"], button {
+      width: 100%;
+      padding: 0.8rem;
+      margin-top: 0.5rem;
+      font-size: 1rem;
+      border-radius: 8px;
+      border: 1px solid #a5d6a7;
+      box-sizing: border-box;
+    }
+
+    label { font-weight: bold; color: #2e7d32; display: block; margin-top: 1rem; }
+
+    .table-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      margin-top: 1rem;
+      border-radius: 8px;
+      background-color: white;
+      box-shadow: 0 2px 8px rgba(0, 128, 0, 0.15);
+    }
+
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+
+    th, td {
+      padding: 0.8rem 0.4rem;
+      text-align: center;
+      border-bottom: 1px solid #e0f2f1;
+      word-wrap: break-word;
+      font-size: 0.9rem;
+    }
+
+    th { background-color: #a5d6a7; color: white; font-weight: 600; }
+
+    .col-prod { width: 30%; text-align: left; padding-left: 10px; color: #2e7d32; font-weight: bold; }
+    .col-disp { width: 15%; }
+    .col-qta { width: 20%; }
+    .col-nota { width: 35%; }
+
+    .modal {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.7); display: none; justify-content: center;
+      align-items: center; z-index: 30000; overflow-y: auto;
+    }
+
+    .modal-content-box {
+      background: white; padding: 20px; border-radius: 12px;
+      width: 90%; max-width: 500px; max-height: 85vh; overflow-y: auto;
+      box-shadow: 0 10px 25px rgba(0,128,0,0.2); margin: 20px auto;
+    }
+
+    #status-message {
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -50%); padding: 20px 40px;
+      border-radius: 15px; color: white; font-weight: bold;
+      font-size: 1.2rem; text-align: center; z-index: 60000;
+      display: none; box-shadow: 0 10px 30px rgba(0,128,0,0.3);
+      max-width: 90vw;
+    }
+
+    .status-success { background-color: #2e7d32; }
+    .status-error { background-color: #d32f2f; }
+
+    .card-persona { border: 1px solid #c8e6c9; border-radius: 10px; padding: 10px; margin-bottom: 15px; background-color: #fafafa; }
+    .card-persona h4 { margin: 0 0 10px 0; color: #2e7d32; border-bottom: 2px solid #2e7d32; padding-bottom: 5px; }
+
+    button { background-color: #2e7d32; color: white; border: none; font-weight: bold; margin-top: 1rem; cursor: pointer; transition: background 0.3s; }
+    button:hover { background-color: #1b5e20; }
+    .btn-secondary { background-color: #6c757d; }
+    .btn-dark { background-color: #1b5e20; }
+    .btn-warning { background-color: #ff9800; }
+    .admin-btn { background-color: transparent; border: 1px solid #2e7d32; color: #2e7d32; margin-top: 1.5rem; }
+
+    /* STILI ADMIN PANEL */
+    .prod-input-group {
+      background: #f5f5f5;
+      padding: 12px;
+      margin: 10px 0;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    .prod-input-group label { margin-top: 0; font-size: 0.95rem; }
+    .prod-input-group input { margin-top: 0.3rem; }
+
+    .nota-admin { font-size: 0.82rem; color: #555; margin: 0.4rem 0 0 0; }
+    .bloccata { color: #d32f2f; font-weight: bold; font-size: 0.85rem; }
+
+    /* TABELLA ADMIN - ottimizzata per smartphone (colonne a misura di contenuto + scroll orizzontale) */
+    .admin-table { table-layout: auto; }
+    .admin-table th, .admin-table td {
+      white-space: nowrap;
+      padding: 0.6rem 0.5rem;
+      font-size: 0.9rem;
+    }
+    .admin-table input {
+      width: 72px;
+      min-width: 60px;
+      padding: 0.45rem;
+      font-size: 0.9rem;
+      margin-top: 0;
+    }
+    .admin-table button {
+      width: auto;
+      margin-top: 0;
+      padding: 0.5rem 0.7rem;
+      font-size: 0.85rem;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 600px) {
+      body { padding: 0.5rem; }
+      #admin-content { padding: 12px !important; }
+      .admin-table th, .admin-table td {
+        font-size: 0.78rem;
+        padding: 0.45rem 0.35rem;
+      }
+      .admin-table input {
+        width: 55px;
+        min-width: 48px;
+        font-size: 0.78rem;
+        padding: 0.35rem;
+      }
+      .admin-table button {
+        font-size: 0.75rem;
+        padding: 0.4rem 0.5rem;
+      }
+      .prod-input-group input { font-size: 0.9rem; }
+    }
+  </style>
+  <style media="print">
+    body * { visibility: hidden; }
+    #contenuto-stampa-famiglie, #contenuto-stampa-famiglie * { visibility: visible; }
+
+    /* Il modal è "position: fixed" a schermo intero: in stampa questo genera pagine
+       duplicate/vuote. Lo riportiamo al flusso normale del documento. */
+    #modal-riepilogo-famiglie {
+      position: static !important;
+      display: block !important;
+      background: none !important;
+      width: auto !important;
+      height: auto !important;
+      overflow: visible !important;
+      z-index: auto !important;
+    }
+    #modal-riepilogo-famiglie .modal-content-box {
+      position: static !important;
+      width: 100% !important;
+      max-width: none !important;
+      max-height: none !important;
+      overflow: visible !important;
+      box-shadow: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    #contenuto-stampa-famiglie { position: static !important; width: 100%; }
+
+    .famiglia-stampa { page-break-inside: avoid; break-inside: avoid; }
+    .no-print { display: none !important; }
+
+    /* Griglia stile Excel per la tabella stampata: bordi su tutte le celle */
+    #contenuto-stampa-famiglie table {
+      border-collapse: collapse !important;
+      width: 100% !important;
+    }
+    #contenuto-stampa-famiglie th,
+    #contenuto-stampa-famiglie td {
+      border: 1px solid #333 !important;
+      padding: 4px 6px !important;
+    }
+  </style>
+
+  <!-- TUTTA LA LOGICA È IN UN UNICO MODULO (Firebase v10 modulare) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import {
+      getFirestore, collection, onSnapshot, doc, getDoc, runTransaction, getDocs,
+      query, where, limit, serverTimestamp, setDoc, deleteDoc, writeBatch
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
+
+    // ⚙️ CONFIGURAZIONE FIREBASE
+    const firebaseConfig = {
+      apiKey: "AIzaSyAY8l_GGRWPWi5BFpirUMXd2JN0MVZZpYM",
+      authDomain: "ordinipost-fcc7f.firebaseapp.com",
+      projectId: "ordinipost-fcc7f",
+      storageBucket: "ordinipost-fcc7f.firebasestorage.app",
+      messagingSenderId: "363847145933",
+      appId: "1:363847145933:web:d1590848833eb147590c84",
+      measurementId: "G-V50YGPTVM4"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Elenco di partenza delle famiglie: viene caricato nel database una sola volta
+    // (al primo avvio con la collezione "famiglie" vuota). Poi si gestisce dal pannello Admin.
+    const FAMIGLIE_DEFAULT = [
+      "Carapezza", "Caruso", "Di Maria", "Marino", "Massimino", "Milanese", "Murabito", "Nicosia",
+      "Pantellaro", "Porto", "Romano", "Ruiz", "Scala", "Tanasi", "Zammillo"
+    ];
+
+    // ============ UTILITÀ ============
+    // Escape HTML: evita che note/nomi con caratteri speciali rompano la pagina o eseguano codice
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+    window.esc = esc;
+
+    const euro = (n) => "€ " + Number(n || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    function slug(testo) {
+      const r = String(testo).trim().toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      return r || `id-${Date.now()}`;
+    }
+
+    function capitalizzaNome(str) {
+      return str
+        .trim()
+        .split(/\s+/)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(" ");
+    }
+
+    // Chiave di raggruppamento "persona" (stessa logica ovunque)
+    const chiavePersona = (nota) => {
+      const n = String(nota || "").trim().replace(/\s+/g, " ").toLowerCase();
+      return n || "generale";
+    };
+
+    // Messaggio di stato: il timer precedente viene annullato, così un messaggio
+    // nuovo non sparisce prima del tempo a causa del timeout di quello vecchio.
+    let statusTimer = null;
+    window.mostraStatus = function(messaggio, isError = false) {
+      const statusBox = document.getElementById("status-message");
+      statusBox.innerText = (isError ? "❌ " : "✅ ") + messaggio;
+      statusBox.className = isError ? "status-error" : "status-success";
+      statusBox.style.display = "block";
+      clearTimeout(statusTimer);
+      statusTimer = setTimeout(() => statusBox.style.display = "none", isError ? 4500 : 2500);
+    };
+    const mostraStatus = window.mostraStatus;
+
+    // ============ SERVICE WORKER E NOTIFICHE ============
+    let messaging = null;
+    let serviceWorkerReady = false;
+    let swRegistration = null;
+
+    async function setupServiceWorker() {
+      try {
+        if (!('serviceWorker' in navigator)) {
+          console.log('Service Worker non supportati');
+          return;
+        }
+
+        await navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: '/' });
+        // Aspetta che il Service Worker sia davvero ATTIVO, non solo registrato
+        swRegistration = await navigator.serviceWorker.ready;
+        serviceWorkerReady = true;
+
+        try {
+          messaging = getMessaging(app);
+          onMessage(messaging, (payload) => {
+            mostraStatus(`🔔 ${payload.data?.title || "Notifica"}: ${payload.data?.body || ""}`);
+          });
+        } catch (e) {
+          console.error('Errore inizializzazione messaging:', e);
+        }
+      } catch (e) {
+        console.error('Errore registrazione Service Worker:', e);
+      }
+    }
+    window.addEventListener('load', setupServiceWorker);
+
+    // ============ PRODOTTI (ascolto in tempo reale) ============
+    let prodottiGlobal = []; // solo prodotti veri, già ordinati (senza il documento _config)
+
+    // Prezzo letto dal prodotto nel database. Si preferisce l'id, con ripiego sul nome.
+    window.getPrezzo = (nomeProdotto, idProdotto) => {
+      let pObj = idProdotto ? prodottiGlobal.find(x => x.id === idProdotto) : null;
+      if (!pObj) pObj = prodottiGlobal.find(x => x.tipo === nomeProdotto);
+      return pObj && pObj.prezzo ? Number(pObj.prezzo) : 0;
+    };
+
+    function ordinaProdotti(lista, ordineArray) {
+      if (!Array.isArray(ordineArray)) return lista;
+      return lista.sort((a, b) => {
+        const idxA = ordineArray.indexOf(a.id);
+        const idxB = ordineArray.indexOf(b.id);
+        return (idxA === -1 ? 9999 : idxA) - (idxB === -1 ? 9999 : idxB);
+      });
+    }
+
+    onSnapshot(collection(db, "prodotti"), (snapshot) => {
+      const config = snapshot.docs.find(d => d.id === "_config")?.data();
+      const lista = snapshot.docs
+        .filter(d => d.id !== "_config")
+        .map(d => ({ id: d.id, ...d.data() }));
+      prodottiGlobal = ordinaProdotti(lista, config?.ordine);
+      renderizzaTabellaPrincipale();
+    });
+
+    function renderizzaTabellaPrincipale() {
+      const contenitore = document.getElementById("lista-prodotti");
+
+      // Salva quanto l'utente ha già digitato (e il campo attivo) perché la tabella
+      // viene ricostruita a ogni variazione di giacenza, anche causata da altri utenti.
+      const salvati = {};
+      contenitore.querySelectorAll("input").forEach(i => { if (i.id) salvati[i.id] = i.value; });
+      const attivo = document.activeElement;
+      const idAttivo = (attivo && contenitore.contains(attivo)) ? attivo.id : null;
+      let selInizio = null, selFine = null;
+      try { if (idAttivo) { selInizio = attivo.selectionStart; selFine = attivo.selectionEnd; } } catch (e) {}
+
+      if (prodottiGlobal.length === 0) {
+        contenitore.innerHTML = "<p>Nessun prodotto disponibile.</p>";
+        return;
+      }
+
+      let html = `<div class="table-wrapper"><table><thead><tr><th class="col-prod">Prodotto</th><th class="col-disp">Disp.</th><th class="col-qta">Qtà</th><th class="col-nota">Nota</th></tr></thead><tbody>`;
+
+      prodottiGlobal.forEach((p) => {
+        const giacenza = Number(p.giacenza) || 0;
+        const isEsaurito = giacenza <= 0;
+        const isWarning = !isEsaurito && giacenza <= 5;
+
+        html += `<tr style="${isEsaurito ? 'background-color: #f9f9f9; color: #999;' : isWarning ? 'background-color: #fff3e0;' : ''}">
+                  <td class="col-prod">${esc(p.tipo)}</td>
+                  <td class="col-disp">${giacenza}</td>
+                  <td class="col-qta">
+                    ${!isEsaurito
+                      ? `<input type="number" id="qta-${esc(p.id)}" min="0" max="${giacenza}" placeholder="0">`
+                      : `<span style="color:#d32f2f; font-weight:bold; font-size:0.8rem;">SOLD OUT</span>`
+                    }
+                  </td>
+                  <td class="col-nota">
+                    <input type="text" id="nota-${esc(p.id)}" placeholder="${isEsaurito ? '' : 'Es: 1 Mario 2 Pippo'}" ${isEsaurito ? 'disabled style="background:#f2f2f2; border:none;"' : ''}>
+                  </td>
+                 </tr>`;
+      });
+
+      html += `</tbody></table></div>`;
+      contenitore.innerHTML = html;
+
+      // Ripristina i valori digitati e il focus
+      Object.entries(salvati).forEach(([id, v]) => {
+        const el = document.getElementById(id);
+        if (el && v !== "") el.value = v;
+      });
+      if (idAttivo) {
+        const el = document.getElementById(idAttivo);
+        if (el) {
+          el.focus();
+          try { if (selInizio !== null) el.setSelectionRange(selInizio, selFine); } catch (e) {}
+        }
+      }
+    }
+
+    // ============ FAMIGLIE (ascolto in tempo reale) ============
+    let famiglieGlobal = []; // [{id, nome}]
+    let seedControllato = false;
+
+    onSnapshot(collection(db, "famiglie"), (snap) => {
+      famiglieGlobal = snap.docs
+        .map(d => ({ id: d.id, nome: d.data().nome || d.id }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+      renderSelectFamiglie();
+
+      if (snap.empty && !seedControllato) {
+        seedControllato = true;
+        caricaFamiglieDefaultSeNecessario();
+      }
+    });
+
+    function renderSelectFamiglie() {
+      const sel = document.getElementById("nome");
+      const corrente = sel.value || localStorage.getItem("famiglia") || "";
+      let html = '<option value="">-- Seleziona --</option>';
+      famiglieGlobal.forEach(f => { html += `<option value="${esc(f.nome)}">${esc(f.nome)}</option>`; });
+      sel.innerHTML = html;
+      sel.value = famiglieGlobal.some(f => f.nome === corrente) ? corrente : "";
+    }
+
+    // Carica l'elenco predefinito UNA sola volta (flag in meta/famiglie_init):
+    // se poi elimini tutte le famiglie, l'elenco non riappare da solo.
+    async function caricaFamiglieDefaultSeNecessario() {
+      try {
+        const metaRef = doc(db, "meta", "famiglie_init");
+        const meta = await getDoc(metaRef);
+        if (meta.exists()) return;
+        const batch = writeBatch(db);
+        FAMIGLIE_DEFAULT.forEach(n => batch.set(doc(db, "famiglie", slug(n)), { nome: n }));
+        batch.set(metaRef, { fatto: true, data: serverTimestamp() });
+        await batch.commit();
+      } catch (e) {
+        console.error("Errore caricamento famiglie predefinite:", e);
+      }
+    }
+
+    // ============ NOTIFICHE DI GIACENZA ============
+    // Le soglie 25 e 15 avvisano solo quando vengono "attraversate" scendendo.
+    // Da 10 in giù avvisa ad OGNI diminuzione.
+    function calcolaNotificaGiacenza(nomeProdotto, vecchia, nuova) {
+      if (nuova >= vecchia) return null; // nessuna diminuzione, nessuna notifica
+
+      if (nuova <= 0) {
+        return { titolo: `Prodotto Esaurito: ${nomeProdotto}`, corpo: `${nomeProdotto} non è più disponibile!` };
+      }
+      if (nuova <= 10) {
+        return { titolo: `⚠️ Solo ${nuova} pezzi rimasti!`, corpo: `${nomeProdotto} sta per terminare!` };
+      }
+      if (vecchia >= 15 && nuova < 15) {
+        return { titolo: `⚠️ ${nomeProdotto} sotto i 15 pezzi`, corpo: `Rimasti ${nuova} pezzi.` };
+      }
+      if (vecchia >= 25 && nuova < 25) {
+        return { titolo: `⚠️ ${nomeProdotto} sotto i 25 pezzi`, corpo: `Rimasti ${nuova} pezzi.` };
+      }
+      return null;
+    }
+
+    window.inviaPushNotifica = async function(titolo, corpo) {
+      try {
+        const risposta = await fetch('/.netlify/functions/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            secret: 'k9Xz2mQ7pL4wR8vT1nC6bY3',
+            title: titolo,
+            body: corpo
+          })
+        });
+        const dati = await risposta.json();
+        console.log(`📢 Notifica inviata: ${titolo} - ${corpo}`, dati);
+      } catch (e) {
+        console.error('Errore invio notifica:', e);
+      }
+    };
+
+    // ============ PARSING NOTA / QUANTITÀ ============
+    function analizzaNotaEQuantita(qtaTotaleInserita, notaTesto) {
+      let testo = notaTesto.trim().replace(/,/g, ' ');
+      // Separa i numeri "attaccati" al nome, es: "2luca" -> "2 luca"
+      testo = testo.replace(/(\d+)(?=[^\s\d])/g, '$1 ');
+      const tokens = testo.split(/\s+/).filter(t => t !== "");
+
+      if (tokens.length === 0) {
+        return { errore: "Inserisci un nome nella nota." };
+      }
+
+      const contieneNumeri = tokens.some(t => /^\d+$/.test(t));
+
+      // Nessun numero nella nota: tutta la quantità inserita va al nome scritto (anche più parole)
+      if (!contieneNumeri) {
+        return { risultati: [{ quantita: qtaTotaleInserita, nota: capitalizzaNome(testo) }] };
+      }
+
+      // Con i numeri il formato è: <numero> <nome, anche di più parole> <numero> <nome> ...
+      if (!/^\d+$/.test(tokens[0])) {
+        const parolePrimaDelNumero = [];
+        let k = 0;
+        while (k < tokens.length && !/^\d+$/.test(tokens[k])) { parolePrimaDelNumero.push(tokens[k]); k++; }
+        const testoAmbiguo = parolePrimaDelNumero.join(" ");
+        return { errore: `Specifica un numero prima di "${capitalizzaNome(testoAmbiguo)}" (es: "3 ${testoAmbiguo}").` };
+      }
+
+      const risultati = [];
+      let correnteQta = null;
+      let correnteNome = [];
+      let erroreNomeMancante = null;
+
+      const chiudiGruppo = () => {
+        if (correnteQta === null) return;
+        const nome = correnteNome.join(" ").trim();
+        if (!nome) {
+          erroreNomeMancante = `Manca il nome dopo il numero ${correnteQta}.`;
+          return;
+        }
+        risultati.push({ quantita: parseInt(correnteQta), nota: capitalizzaNome(nome) });
+      };
+
+      for (const token of tokens) {
+        if (erroreNomeMancante) break;
+        if (/^\d+$/.test(token)) {
+          chiudiGruppo();
+          correnteQta = token;
+          correnteNome = [];
+        } else {
+          correnteNome.push(token);
+        }
+      }
+      if (!erroreNomeMancante) chiudiGruppo();
+
+      if (erroreNomeMancante) return { errore: erroreNomeMancante };
+
+      const somma = risultati.reduce((acc, r) => acc + r.quantita, 0);
+      if (somma !== qtaTotaleInserita) {
+        return { errore: `La somma nella nota (${somma}) non coincide con la quantità inserita (${qtaTotaleInserita}). Correggi uno dei due valori.` };
+      }
+
+      return { risultati };
+    }
+
+    // ============ NUOVO ORDINE (validazione lato schermo) ============
+    window.confermaOrdine = function() {
+      const nomeFamiglia = document.getElementById("nome").value;
+      if (!nomeFamiglia) return mostraStatus("Seleziona la famiglia!", true);
+
+      const ordine = [];
+
+      for (const p of prodottiGlobal) {
+        const qInput = document.getElementById(`qta-${p.id}`);
+        if (!qInput) continue; // prodotto esaurito, nessun campo
+
+        const qta = Number(qInput.value);
+        if (!Number.isSafeInteger(qta) || qta < 0) return mostraStatus("Inserisci quantità intere non negative.", true);
+        const nTesto = (document.getElementById(`nota-${p.id}`)?.value || "").trim();
+
+        if (qta <= 0 && nTesto === "") continue;
+        if (qta <= 0) return mostraStatus(`Inserisci la quantità per ${p.tipo}.`, true);
+        if (!nTesto) return mostraStatus(`Inserisci una nota (Chi?) per ${p.tipo}`, true);
+
+        const giacenza = Number(p.giacenza) || 0;
+        if (qta > giacenza) return mostraStatus(`${p.tipo}: ne sono rimasti solo ${giacenza}.`, true);
+
+        const esito = analizzaNotaEQuantita(qta, nTesto);
+        if (esito.errore) return mostraStatus(`${p.tipo}: ${esito.errore}`, true);
+
+        for (const sub of esito.risultati) {
+          if (sub.quantita > 0 && sub.nota) {
+            ordine.push({
+              nome: nomeFamiglia,
+              prodottoId: p.id,
+              prodotto: p.tipo,
+              quantita: sub.quantita,
+              nota: sub.nota
+            });
+          }
+        }
+      }
+
+      if (ordine.length === 0) return mostraStatus("Nessun prodotto selezionato.", true);
+
+      window.payloadTemporaneo = ordine;
+      window.tipoOperazione = "ordine";
+      let text = `Nuova Prenotazione (${nomeFamiglia}):\n`;
+      ordine.forEach(o => text += `• ${o.prodotto}: ${o.quantita} (${o.nota})\n`);
+
+      document.getElementById("titoloModal").innerText = "Conferma Ordine";
+      document.getElementById("riepilogoCorpo").innerText = text;
+      document.getElementById("modal").style.display = "flex";
+    };
+
+    // ============ SCRITTURA ORDINE / MODIFICA (TRANSAZIONE ATOMICA) ============
+    let operazioneInCorso = false;
+
+    window.eseguiOperazioneBackend = async function() {
+      const items = window.payloadTemporaneo;
+      if (!items || items.length === 0) return;
+      if (operazioneInCorso) return;
+      operazioneInCorso = true;
+      document.getElementById("modal").style.display = "none";
+
+      try {
+        const notifiche = await registraOperazione(items, window.tipoOperazione);
+
+        // Svuota solo i campi del modulo ordini (non quelli del pannello admin)
+        document.querySelectorAll('#lista-prodotti input').forEach(i => i.value = "");
+
+        mostraStatus(window.tipoOperazione === "modifica" ? "MODIFICA APPLICATA" : "ORDINE CONFERMATO");
+        (notifiche || []).forEach(n => window.inviaPushNotifica(n.titolo, n.corpo));
+        window.payloadTemporaneo = null;
+      } catch (e) {
+        mostraStatus("ERRORE: " + e.message, true);
+      } finally {
+        operazioneInCorso = false;
+      }
+    };
+
+    // ============ RIEPILOGO FAMIGLIA ============
+    window.mostraRiepilogoPrenotazioni = async function() {
+      const fam = document.getElementById("nome").value;
+      if (!fam) return mostraStatus("Seleziona una famiglia!", true);
+
+      try {
+        const snapshot = await getDocs(query(collection(db, "prenotazioni"), where("nome", "==", fam)));
+
+        const riepilogo = {}; // chiave prodotto -> {nome, id, qta}
+        snapshot.forEach((d) => {
+          const x = d.data();
+          const k = x.prodottoId || x.prodotto;
+          if (!riepilogo[k]) riepilogo[k] = { nome: x.prodotto, id: x.prodottoId, qta: 0 };
+          riepilogo[k].qta += Number(x.quantita) || 0;
+        });
+
+        let totaleEuro = 0;
+        let html = `<div style="background:#e8f5e9; padding:10px; border-radius:8px; margin-bottom:15px; border: 1px solid #a5d6a7;"><strong>${esc(fam)}</strong></div>`;
+        html += `<div class="table-wrapper"><table style="width:100%; font-size:1.1rem;"><tr style="background:#2e7d32; color:white;"><th style="text-align:left; padding:12px;">Prodotto</th><th style="width:30%;">Qtà</th></tr>`;
+
+        for (const r of Object.values(riepilogo)) {
+          if (r.qta > 0) {
+            totaleEuro += r.qta * window.getPrezzo(r.nome, r.id);
+            html += `<tr><td style="text-align:left; padding:12px;">${esc(r.nome)}</td><td style="font-weight:bold; font-size:1.3rem;">${r.qta}</td></tr>`;
+          }
+        }
+
+        html += `</table></div><h3 style="text-align:right; color:#2e7d32;">Totale: ${euro(totaleEuro)}</h3>
+                 <button onclick="preparaPDF(document.getElementById('nome').value)">Prepara PDF famiglia</button><button class="btn-dark" onclick="mostraDettaglioPerPersone()">Dettaglio per Singola Persona</button>`;
+
+        document.getElementById("contenuto-riepilogo").innerHTML = html;
+        document.getElementById("modal-riepilogo").style.display = "flex";
+      } catch (e) {
+        mostraStatus("Errore caricamento riepilogo: " + e.message, true);
+      }
+    };
+
+    // ============ DETTAGLIO PER PERSONA CON VARIAZIONE (+ / -) ============
+    window.mostraDettaglioPerPersone = async function() {
+      const fam = document.getElementById("nome").value;
+      if (!fam) return mostraStatus("Seleziona una famiglia!", true);
+
+      try {
+        document.getElementById("modal-riepilogo").style.display = "none";
+        const snapshot = await getDocs(query(collection(db, "prenotazioni"), where("nome", "==", fam)));
+
+        const statoPersona = await getDoc(doc(db, "gestione_famiglie", familyId(fam)));
+        const gestione = statoPersona.exists() ? statoPersona.data().persone || {} : {};
+        const personeMap = {};
+        snapshot.forEach(d => {
+          const x = d.data();
+          const notaOriginale = (x.nota || "").trim();
+          const chiave = chiavePersona(notaOriginale);
+          if (!personeMap[chiave]) {
+            personeMap[chiave] = { label: notaOriginale ? capitalizzaNome(notaOriginale) : "Generale", prodotti: {} };
+          }
+          // Identifica il prodotto per id (se manca nei vecchi dati, ripiega sul nome)
+          let pId = x.prodottoId;
+          if (!pId) pId = prodottiGlobal.find(p => p.tipo === x.prodotto)?.id || x.prodotto;
+          const pv = personeMap[chiave].prodotti;
+          if (!pv[pId]) pv[pId] = { nome: x.prodotto, qta: 0 };
+          pv[pId].qta += Number(x.quantita) || 0;
+        });
+
+        let html = "";
+        for (const { label: persona, prodotti } of Object.values(personeMap)) {
+          const righe = Object.entries(prodotti).filter(([_, v]) => v.qta > 0);
+          if (righe.length === 0) continue;
+
+          let totPers = 0;
+          html += `<div class="card-persona"><h4>👤 ${esc(persona)}</h4><div class="table-wrapper"><table style="width:100%;"><tr style="font-size:0.8rem; background:#f0f0f0;"><th style="color:black; background:#eee; text-align:left;">Prodotto</th><th style="color:black; background:#eee; width:15%;">Att.</th><th style="color:green; background:#eee; width:20%;">+</th><th style="color:red; background:#eee; width:20%;">-</th></tr>`;
+
+          for (const [pId, v] of righe) {
+            const nomeAttuale = prodottiGlobal.find(x => x.id === pId)?.tipo || v.nome;
+            totPers += v.qta * window.getPrezzo(nomeAttuale, pId);
+            html += `<tr><td style="text-align:left;">${esc(nomeAttuale)}</td><td><strong>${v.qta}</strong></td>
+                     <td><input type="number" class="in-add" data-pers="${esc(persona)}" data-prod="${esc(nomeAttuale)}" data-id="${esc(pId)}" value="0" min="0"></td>
+                     <td><input type="number" class="in-sub" data-pers="${esc(persona)}" data-prod="${esc(nomeAttuale)}" data-id="${esc(pId)}" data-current="${v.qta}" value="0" min="0" max="${v.qta}"></td></tr>`;
+          }
+          const g = gestione[personKey(persona)] || {};
+          html += `</table></div><p>Pagato: ${euro((g.pagato || 0)/100)} · ${statoPagamento(g.pagato || 0, Math.round(totPers*100))}</p>
+            <button data-fam="${esc(fam)}" data-persona="${esc(persona)}" onclick="gestisciPersona(this.dataset.fam,this.dataset.persona)">Pagamenti e consegne</button>
+            <button data-fam="${esc(fam)}" data-persona="${esc(persona)}" onclick="preparaPDF(this.dataset.fam,this.dataset.persona)">Prepara PDF persona</button>
+            <button data-fam="${esc(fam)}" data-persona="${esc(persona)}" onclick="cancellaPersona(this.dataset.fam,this.dataset.persona)">Cancella ordine persona</button>
+            <div style="text-align:right; margin-top:10px; font-weight:bold; color:#2e7d32;">Parziale: ${euro(totPers)}</div></div>`;
+        }
+
+        document.getElementById("contenuto-dettaglio").innerHTML = html || "Nessun dato trovato per questa famiglia.";
+        document.getElementById("modal-dettaglio-persone").style.display = "flex";
+      } catch (e) {
+        mostraStatus("Errore caricamento dettaglio: " + e.message, true);
+      }
+    };
+
+    window.preparaModificaDettaglio = function() {
+      const fam = document.getElementById("nome").value;
+      const modifiche = [];
+      const deltaPerProdotto = {};
+      let riepilogoTesto = `⚠️ MODIFICA RICHIESTA (${fam})\n\n`;
+
+      for (const elAdd of document.querySelectorAll("#contenuto-dettaglio .in-add")) {
+        const riga = elAdd.closest("tr");
+        const elSub = riga.querySelector(".in-sub");
+        const add = Number(elAdd.value);
+        const sub = Number(elSub.value);
+        if (![add, sub].every(n => Number.isSafeInteger(n) && n >= 0)) return mostraStatus("Inserisci quantità intere non negative.", true);
+        const disponibile = parseInt(elSub.dataset.current) || 0;
+        const prod = elAdd.dataset.prod;
+        const pers = elAdd.dataset.pers;
+        const pId = elAdd.dataset.id;
+
+        if (sub > disponibile) {
+          return mostraStatus(`Non puoi togliere ${sub} ${prod} a ${pers}: ne ha solo ${disponibile}.`, true);
+        }
+
+        const netto = add - sub;
+        if (netto !== 0) {
+          modifiche.push({ nome: fam, prodottoId: pId, prodotto: prod, quantita: netto, nota: pers });
+          deltaPerProdotto[pId] = (deltaPerProdotto[pId] || 0) + netto;
+          riepilogoTesto += `• ${pers} | ${prod}: ${netto > 0 ? '+' : ''}${netto}\n`;
+        }
+      }
+
+      if (modifiche.length === 0) return mostraStatus("Nessuna modifica inserita.", true);
+
+      // Controllo anticipato sulla disponibilità complessiva (quello definitivo è nella transazione)
+      for (const [pId, delta] of Object.entries(deltaPerProdotto)) {
+        if (delta <= 0) continue;
+        const p = prodottiGlobal.find(x => x.id === pId);
+        const giacenza = p ? (Number(p.giacenza) || 0) : 0;
+        if (delta > giacenza) {
+          return mostraStatus(`${p ? p.tipo : pId}: ne servono ${delta} in più ma ne restano solo ${giacenza}.`, true);
+        }
+      }
+
+      document.getElementById("modal-dettaglio-persone").style.display = "none";
+      window.payloadTemporaneo = modifiche;
+      window.tipoOperazione = "modifica";
+      document.getElementById("titoloModal").innerText = "Conferma Modifiche";
+      document.getElementById("riepilogoCorpo").innerText = riepilogoTesto;
+      document.getElementById("modal").style.display = "flex";
+    };
+
+    // ============ NOTIFICHE PUSH DISPOSITIVO ============
+    window.attivaNotifichePush = async function() {
+      if (!messaging && !serviceWorkerReady) return mostraStatus("Le notifiche non sono supportate su questo browser.", true);
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          localStorage.setItem("notificheAbilitate", "1");
+
+          if (messaging) {
+            try {
+              const token = await getToken(messaging, {
+                vapidKey: "BJnvFe-amLgnp89cNI2k1XAmMw5cMvy9yzEMhIAGb9pwHlRCEUKQWmkKyNnBeo3TtDVgToa6Le2daJT4RzgX9u0",
+                serviceWorkerRegistration: swRegistration
+              });
+
+              await setDoc(doc(db, "admin_tokens", token), { token: token, data: serverTimestamp() });
+              mostraStatus("Dispositivo registrato per le Notifiche Push!");
+            } catch (tokenErr) {
+              console.error('Errore registrazione token:', tokenErr);
+              mostraStatus("Notifiche abilitate, ma la registrazione del dispositivo non è riuscita: " + tokenErr.message, true);
+            }
+          } else {
+            mostraStatus("Service Worker pronto! Notifiche abilitate.");
+          }
+        } else {
+          mostraStatus("Permesso per le notifiche negato.", true);
+        }
+      } catch (e) {
+        mostraStatus("Errore durante l'attivazione notifiche: " + e.message, true);
+      }
+
+      window.aggiornaVisibilitaBottoneNotifiche();
+    };
+
+    window.aggiornaVisibilitaBottoneNotifiche = function() {
+      const btn = document.getElementById("btn-notifiche");
+      if (!btn) return;
+
+      const giaAbilitateSalvato = localStorage.getItem("notificheAbilitate") === "1";
+      const permessoConcesso = ("Notification" in window) && Notification.permission === "granted";
+      const permessoNegato = ("Notification" in window) && Notification.permission === "denied";
+
+      if (permessoConcesso) localStorage.setItem("notificheAbilitate", "1");
+
+      if (giaAbilitateSalvato || permessoConcesso || permessoNegato || !("Notification" in window)) {
+        btn.style.display = "none";
+      } else {
+        btn.style.display = "block";
+      }
+    };
+
+    // ================== ADMIN PANEL ==================
+
+    window.entraPannelloAdmin = function() {
+      const input = document.getElementById("admin-password-input");
+      input.value = "";
+      document.getElementById("modal-admin-login").style.display = "flex";
+      setTimeout(() => input.focus(), 100);
+    };
+
+    window.chiudiModalAdminLogin = function() {
+      document.getElementById("modal-admin-login").style.display = "none";
+    };
+
+    window.confermaPasswordAdmin = function() {
+      const password = document.getElementById("admin-password-input").value;
+      if (password === "admin123") { // CAMBIA QUESTA PASSWORD!
+        document.getElementById("modal-admin-login").style.display = "none";
+        document.getElementById("main-content").style.display = "none";
+        document.getElementById("admin-panel").style.display = "block";
+        window.caricaProdottiAdmin();
+      } else {
+        mostraStatus("Password errata!", true);
+      }
+    };
+
+    window.esciPannelloAdmin = function() {
+      document.getElementById("main-content").style.display = "block";
+      document.getElementById("admin-panel").style.display = "none";
+    };
+
+    window.caricaProdottiAdmin = async function() {
+      try {
+        const [docs, configSnap] = await Promise.all([
+          getDocs(collection(db, "prodotti")),
+          getDoc(doc(db, "prodotti", "_config"))
+        ]);
+        let prodotti = [];
+        docs.forEach(d => {
+          if (d.id !== "_config") prodotti.push({ id: d.id, ...d.data() });
+        });
+        // Stesso ordine mostrato agli utenti: così "Ordine Vis." riflette la realtà
+        // e salvare i prezzi non azzera l'ordine personalizzato.
+        prodotti = ordinaProdotti(prodotti, configSnap.exists() ? configSnap.data().ordine : null);
+
+        let html = '<h3>Prodotti Attuali</h3>';
+        if (prodotti.length === 0) {
+          html += '<p>Nessun prodotto trovato. Aggiungine uno qui sotto.</p>';
+        } else {
+          html += '<div class="table-wrapper"><table class="admin-table"><tr><th>Nome</th><th>Giacenza iniziale</th><th>Giacenza attuale</th><th>Ordinati</th><th>Aggiungi/Togli scorta</th><th>Prezzo (€)</th><th>Ordine Vis.</th><th>Azioni</th></tr>';
+          prodotti.forEach((p, idx) => {
+            const giac = Number(p.giacenza) || 0;
+            const ord = Number(p.ordinati) || 0;
+            // Prodotti creati prima di questa versione: iniziale = attuale + ordinati
+            const iniziale = (p.iniziale !== undefined && p.iniziale !== null) ? Number(p.iniziale) : (giac + ord);
+            html += `<tr>
+              <td>${esc(p.tipo)}</td>
+              <td><strong>${iniziale}</strong></td>
+              <td>${giac}</td>
+              <td>${ord}</td>
+              <td>
+                <input type="number" id="scorta-${esc(p.id)}" placeholder="es: 20 o -5" style="width:80px;">
+                <button class="btn-secondary" style="width:auto; padding:6px 10px;" data-id="${esc(p.id)}" onclick="aggiungiScortaAdmin(this.dataset.id)">OK</button>
+              </td>
+              <td><input type="number" id="prezzo-${esc(p.id)}" value="${Number(p.prezzo) || 0}" min="0" step="0.5" style="width:70px;"></td>
+              <td><input type="number" id="sort-${esc(p.id)}" value="${idx}" min="0" style="width:60px;"></td>
+              <td><button class="btn-secondary" data-id="${esc(p.id)}" onclick="eliminaProdottoAdmin(this.dataset.id)">Elimina</button></td>
+            </tr>`;
+          });
+          html += '</table></div>';
+          html += '<p class="nota-admin">La <strong>giacenza iniziale</strong> è il totale caricato da te (alla creazione + scorte aggiunte/tolte). Vale sempre: iniziale = attuale + ordinati.</p>';
+        }
+
+        html += `<h3 style="margin-top:2rem;">Aggiungi Nuovo Prodotto</h3>
+          <div class="prod-input-group">
+            <label>Nome Prodotto:</label>
+            <input type="text" id="new-prod-name" placeholder="Es: Colombe Pistacchio">
+            <label>Giacenza Iniziale:</label>
+            <input type="number" id="new-prod-qta" min="0" value="10">
+            <label>Prezzo (€):</label>
+            <input type="number" id="new-prod-prezzo" min="0" step="0.5" value="0">
+            <button onclick="aggiungiProdottoAdmin()" style="width:auto; margin-top:1rem;">Aggiungi Prodotto</button>
+          </div>`;
+
+        html += `<h3 style="margin-top:2rem;">Salva Ordine Visualizzazione e Prezzi</h3>
+          <p>Modifica i numeri nella tabella sopra (ordine e/o prezzo) e clicca qui per salvare:</p>
+          <button onclick="salvaOrdineAdmin()" class="btn-dark" style="width:auto; margin-top:1rem;">💾 Salva Ordine e Prezzi</button>`;
+
+        html += `<div id="sezione-famiglie-admin"><p>Caricamento famiglie...</p></div>`;
+
+        html += `<h3 style="margin-top:2rem;">Riepilogo Ordini per Famiglia</h3>
+          <p>Vedi tutti gli ordini raggruppati per famiglia/padrino, con prodotti, quantità e totale — pronto per la stampa in PDF.</p>
+          <button onclick="mostraRiepilogoFamiglieAdmin()" class="btn-dark" style="width:auto; margin-top:1rem;">📋 Apri Riepilogo per Famiglia</button>`;
+
+        html += `<button onclick="apriReport()">Report operazioni e annullamenti</button><button onclick="preparaPDF()">Prepara PDF di tutti gli ordini</button><h3 style="margin-top:2rem;">Reset Completo</h3>
+          <p>Il reset è disabilitato per preservare pagamenti e storico. Per ripartire occorre archiviare la campagna.</p>
+          <button onclick="resetCompletoAdmin()" class="btn-warning" style="width:auto; margin-top:1rem;">🗑️ Reset Completo</button>`;
+
+        document.getElementById("admin-content").innerHTML = html;
+        window.caricaFamiglieAdmin();
+      } catch (e) {
+        mostraStatus("Errore caricamento admin: " + e.message, true);
+      }
+    };
+
+    window.aggiungiProdottoAdmin = async function() {
+      const nome = document.getElementById("new-prod-name").value.trim().replace(/\s+/g, " ");
+      const qta = Number(document.getElementById("new-prod-qta").value);
+      const prezzo = Number(document.getElementById("new-prod-prezzo").value);
+
+      if (!nome) return mostraStatus("Inserisci il nome del prodotto!", true);
+      if (!Number.isSafeInteger(qta) || !Number.isFinite(prezzo) || qta < 0 || prezzo < 0) return mostraStatus("Giacenza e prezzo non possono essere negativi.", true);
+      if (prodottiGlobal.some(p => String(p.tipo).toLowerCase() === nome.toLowerCase())) {
+        return mostraStatus("Esiste già un prodotto con questo nome.", true);
+      }
+
+      try {
+        let newId = slug(nome);
+        const esistente = await getDoc(doc(db, "prodotti", newId));
+        if (esistente.exists() || newId === "_config") newId = `${newId}-${Date.now()}`;
+
+        await setDoc(doc(db, "prodotti", newId), {
+          tipo: nome,
+          giacenza: qta,
+          iniziale: qta,
+          prezzo: prezzo,
+          ordinati: 0
+        });
+        mostraStatus("Prodotto aggiunto!");
+        window.caricaProdottiAdmin();
+      } catch (e) {
+        mostraStatus("Errore: " + e.message, true);
+      }
+    };
+
+    // Aggiunge/toglie scorta in modo ATOMICO (transazione): un ordine in arrivo nello
+    // stesso istante non viene più perso. Aggiorna anche la giacenza iniziale.
+    window.aggiungiScortaAdmin = async function(id) {
+      const input = document.getElementById(`scorta-${id}`);
+      const delta = Number(input.value);
+      if (!Number.isSafeInteger(delta)) return mostraStatus("Inserisci una quantità intera.", true);
+      if (delta === 0) return mostraStatus("Inserisci una quantità diversa da zero (es: 20 per aggiungere, -5 per togliere).", true);
+
+      try {
+        const ref = doc(db, "prodotti", id);
+        const esito = await runTransaction(db, async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists()) throw new Error("Prodotto non trovato.");
+          const d = snap.data();
+          const vecchia = Number(d.giacenza) || 0;
+          const nuova = vecchia + delta;
+          if (nuova < 0) throw new Error(`Non puoi togliere ${Math.abs(delta)}: ci sono solo ${vecchia} pezzi.`);
+          const inizialeAttuale = (d.iniziale !== undefined && d.iniziale !== null)
+            ? Number(d.iniziale)
+            : vecchia + (Number(d.ordinati) || 0);
+          tx.update(ref, { giacenza: nuova, iniziale: inizialeAttuale + delta });
+          return { vecchia, nuova, nome: d.tipo };
+        });
+
+        mostraStatus(`Giacenza aggiornata: ${esito.vecchia} → ${esito.nuova}`);
+
+        const notif = calcolaNotificaGiacenza(esito.nome, esito.vecchia, esito.nuova);
+        if (notif) window.inviaPushNotifica(notif.titolo, notif.corpo);
+
+        window.caricaProdottiAdmin();
+      } catch (e) {
+        mostraStatus("Errore: " + e.message, true);
+      }
+    };
+
+    window.eliminaProdottoAdmin = async function(id) {
+      try {
+        // Non si elimina un prodotto già prenotato: i prezzi/totali e le modifiche si romperebbero
+        if (!confirm("Sei sicuro di voler eliminare questo prodotto?")) return;
+        await runTransaction(db, async tx => {
+          const ref = doc(db, "prodotti", id), snap = await tx.get(ref);
+          if (!snap.exists()) throw new Error("Prodotto non trovato.");
+          if (Number(snap.data().ordinati) !== 0) throw new Error("Il prodotto ha ordini: non può essere eliminato.");
+          tx.delete(ref);
+        });
+        mostraStatus("Prodotto eliminato!");
+        window.caricaProdottiAdmin();
+      } catch (e) {
+        mostraStatus("Errore: " + e.message, true);
+      }
+    };
+
+    // ---------- GESTIONE FAMIGLIE (ADMIN) ----------
+    async function contaPezziFamiglia(nome) {
+      const snap = await getDocs(query(collection(db, "prenotazioni"), where("nome", "==", nome)));
+      let tot = 0;
+      snap.forEach(d => { tot += Number(d.data().quantita) || 0; });
+      return tot;
+    }
+
+    window.caricaFamiglieAdmin = async function() {
+      const box = document.getElementById("sezione-famiglie-admin");
+      if (!box) return;
+      try {
+        const [famSnap, prenSnap] = await Promise.all([
+          getDocs(collection(db, "famiglie")),
+          getDocs(collection(db, "prenotazioni"))
+        ]);
+
+        const pezzi = {};
+        prenSnap.forEach(d => {
+          const x = d.data();
+          pezzi[x.nome] = (pezzi[x.nome] || 0) + (Number(x.quantita) || 0);
+        });
+
+        const famiglie = famSnap.docs
+          .map(d => ({ id: d.id, nome: d.data().nome || d.id }))
+          .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+
+        let html = `<h3 style="margin-top:2rem;">Famiglie Padrini</h3>
+          <p>Puoi rinominare o eliminare solo le famiglie <strong>senza ordini</strong>. Dopo un Reset Completo sono di nuovo tutte modificabili.</p>`;
+
+        if (famiglie.length === 0) {
+          html += '<p>Nessuna famiglia presente. Aggiungine una qui sotto.</p>';
+        } else {
+          html += '<div class="table-wrapper"><table class="admin-table"><tr><th>Famiglia</th><th>Pezzi ordinati</th><th>Azioni</th></tr>';
+          famiglie.forEach(f => {
+            const n = pezzi[f.nome] || 0;
+            if (n > 0) {
+              html += `<tr><td style="text-align:left;">${esc(f.nome)}</td><td>${n}</td><td><span class="bloccata">🔒 Ha ordini</span></td></tr>`;
+            } else {
+              html += `<tr>
+                <td><input type="text" id="fam-nome-${esc(f.id)}" value="${esc(f.nome)}" style="width:160px;"></td>
+                <td>0</td>
+                <td>
+                  <button class="btn-secondary" data-id="${esc(f.id)}" onclick="rinominaFamigliaAdmin(this.dataset.id)">Salva nome</button>
+                  <button class="btn-warning" data-id="${esc(f.id)}" onclick="eliminaFamigliaAdmin(this.dataset.id)">Elimina</button>
+                </td>
+              </tr>`;
+            }
+          });
+          html += '</table></div>';
+        }
+
+        html += `<div class="prod-input-group">
+            <label>Nuova famiglia:</label>
+            <input type="text" id="new-fam-name" placeholder="Es: Rossi">
+            <button onclick="aggiungiFamigliaAdmin()" style="width:auto; margin-top:1rem;">Aggiungi Famiglia</button>
+          </div>`;
+
+        box.innerHTML = html;
+      } catch (e) {
+        box.innerHTML = `<p style="color:#d32f2f;">Errore caricamento famiglie: ${esc(e.message)}</p>`;
+      }
+    };
+
+    const nomeFamigliaPulito = (s) => String(s || "").trim().replace(/\s+/g, " ");
+    const nomeFamigliaEsiste = (nome, escludiId) =>
+      famiglieGlobal.some(f => f.id !== escludiId && f.nome.toLowerCase() === nome.toLowerCase());
+
+    window.aggiungiFamigliaAdmin = async function() {
+      const nome = nomeFamigliaPulito(document.getElementById("new-fam-name").value);
+      if (!nome) return mostraStatus("Inserisci il nome della famiglia!", true);
+      if (nomeFamigliaEsiste(nome)) return mostraStatus("Esiste già una famiglia con questo nome.", true);
+
+      try {
+        let id = slug(nome);
+        const esistente = await getDoc(doc(db, "famiglie", id));
+        if (esistente.exists()) id = `${id}-${Date.now()}`;
+        await setDoc(doc(db, "famiglie", id), { nome });
+        mostraStatus("Famiglia aggiunta!");
+        window.caricaFamiglieAdmin();
+      } catch (e) {
+        mostraStatus("Errore: " + e.message, true);
+      }
+    };
+
+    window.rinominaFamigliaAdmin = async function(id) {
+      const nuovo = nomeFamigliaPulito(document.getElementById(`fam-nome-${id}`)?.value);
+      if (!nuovo) return mostraStatus("Il nome non può essere vuoto.", true);
+
+      try {
+        const ref = doc(db, "famiglie", id);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return mostraStatus("Famiglia non trovata.", true);
+        const vecchio = snap.data().nome;
+
+        if (nuovo === vecchio) return mostraStatus("Il nome è invariato.", true);
+        if (nomeFamigliaEsiste(nuovo, id)) return mostraStatus("Esiste già una famiglia con questo nome.", true);
+
+        // Controllo aggiornato al momento del click (non sui dati mostrati a schermo)
+        if (await contaPezziFamiglia(vecchio) > 0) {
+          window.caricaFamiglieAdmin();
+          return mostraStatus(`${vecchio} ha già degli ordini: non si può rinominare.`, true);
+        }
+
+        await setDoc(ref, { nome: nuovo }, { merge: true });
+        mostraStatus("Famiglia rinominata!");
+        window.caricaFamiglieAdmin();
+      } catch (e) {
+        mostraStatus("Errore: " + e.message, true);
+      }
+    };
+
+    window.eliminaFamigliaAdmin = async function(id) {
+      try {
+        const ref = doc(db, "famiglie", id);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return mostraStatus("Famiglia non trovata.", true);
+        const nome = snap.data().nome;
+
+        if (await contaPezziFamiglia(nome) > 0) {
+          window.caricaFamiglieAdmin();
+          return mostraStatus(`${nome} ha già degli ordini: non si può eliminare.`, true);
+        }
+        if (!confirm(`Eliminare la famiglia "${nome}"?`)) return;
+
+        await deleteDoc(ref);
+        mostraStatus("Famiglia eliminata!");
+        window.caricaFamiglieAdmin();
+      } catch (e) {
+        mostraStatus("Errore: " + e.message, true);
+      }
+    };
+
+    // ---------- RIEPILOGO ORDINI PER FAMIGLIA (stampabile in PDF) ----------
+    window.mostraRiepilogoFamiglieAdmin = async function() {
+      try {
+        const snapshot = await getDocs(collection(db, "prenotazioni"));
+
+        // famiglia -> prodotto -> {nome, id, qta}
+        const famiglie = {};
+        snapshot.forEach(d => {
+          const x = d.data();
+          const fam = x.nome || "Sconosciuto";
+          if (!famiglie[fam]) famiglie[fam] = {};
+          const k = x.prodottoId || x.prodotto;
+          if (!famiglie[fam][k]) famiglie[fam][k] = { nome: x.prodotto, id: x.prodottoId, qta: 0 };
+          famiglie[fam][k].qta += Number(x.quantita) || 0;
+        });
+
+        const nomiFamiglie = Object.keys(famiglie).sort((a, b) => a.localeCompare(b, 'it'));
+
+        let html = `<p style="text-align:center; color:#666; margin-bottom:20px;">Generato il ${new Date().toLocaleDateString('it-IT')}</p>`;
+        let almenoUna = false;
+
+        nomiFamiglie.forEach(fam => {
+          const prodotti = Object.values(famiglie[fam]).filter(v => v.qta > 0);
+          if (prodotti.length === 0) return;
+          almenoUna = true;
+
+          let totQuantita = 0;
+          let totSoldi = 0;
+
+          html += `<div class="card-persona famiglia-stampa">
+                     <h4>👤 ${esc(fam)}</h4>
+                     <div class="table-wrapper"><table style="width:100%;">
+                       <tr style="font-size:0.72rem; background:#f0f0f0;">
+                         <th style="text-align:left; color:black; background:#eee;">Prodotto</th>
+                         <th style="color:black; background:#eee;">Quantità</th>
+                         <th style="color:black; background:#eee;">Consegnati</th>
+                         <th style="color:black; background:#eee;">Etich. Panettone</th>
+                         <th style="color:black; background:#eee;">Creme</th>
+                         <th style="color:black; background:#eee;">Etich. Vasetti</th>
+                       </tr>`;
+
+          prodotti.forEach(v => {
+            totQuantita += v.qta;
+            totSoldi += v.qta * window.getPrezzo(v.nome, v.id);
+            html += `<tr>
+                       <td style="text-align:left;">${esc(v.nome)}</td>
+                       <td style="text-align:center;">${v.qta}</td>
+                       <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
+                       <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
+                       <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
+                       <td style="text-align:center; border-bottom:1px solid #999;">&nbsp;</td>
+                     </tr>`;
+          });
+
+          html += `<tr style="background:#e8f5e9; font-weight:bold;">
+                     <td style="text-align:left;">Totale</td>
+                     <td style="text-align:center;">${totQuantita}</td>
+                     <td style="text-align:left; font-weight:normal; font-size:0.68rem;">Totale scatole:</td>
+                     <td style="text-align:left; font-weight:normal; font-size:0.68rem;">Totale laccetti:</td>
+                     <td style="text-align:left; font-weight:normal; font-size:0.68rem;">Totale adesivi:</td>
+                     <td style="text-align:center;">${euro(totSoldi)}</td>
+                   </tr>`;
+
+          html += `</table></div></div>`;
+        });
+
+        if (!almenoUna) html += "<p>Nessun ordine trovato.</p>";
+
+        document.getElementById("contenuto-stampa-famiglie").innerHTML = html;
+        document.getElementById("modal-riepilogo-famiglie").style.display = "flex";
+      } catch (e) {
+        mostraStatus("Errore caricamento riepilogo: " + e.message, true);
+      }
+    };
+
+    window.salvaOrdineAdmin = async function() {
+      try {
+        // Ordine: si ordina per numero inserito; a parità di numero resta la posizione attuale,
+        // così due prodotti con lo stesso numero non si sovrascrivono più.
+        const righe = [...document.querySelectorAll("[id^='sort-']")].map((inp, pos) => ({
+          id: inp.id.slice("sort-".length),
+          val: parseFloat(inp.value),
+          pos
+        }));
+        righe.sort((a, b) => {
+          const va = isNaN(a.val) ? 1e9 : a.val;
+          const vb = isNaN(b.val) ? 1e9 : b.val;
+          return (va - vb) || (a.pos - b.pos);
+        });
+        const ordine = righe.map(r => r.id);
+
+        const batch = writeBatch(db);
+        batch.set(doc(db, "prodotti", "_config"), { ordine });
+
+        document.querySelectorAll("[id^='prezzo-']").forEach(inp => {
+          const id = inp.id.slice("prezzo-".length);
+          const prezzo = Number(inp.value);
+          if (!Number.isFinite(prezzo) || prezzo < 0) throw new Error("Prezzo non valido.");
+          batch.update(doc(db, "prodotti", id), { prezzo });
+        });
+
+        await batch.commit();
+        mostraStatus("Ordine e prezzi salvati!");
+        window.caricaProdottiAdmin();
+      } catch (e) {
+        mostraStatus("Errore: " + e.message, true);
+      }
+    };
+
+    async function svuotaCollezione(nome) {
+      const snap = await getDocs(collection(db, nome));
+      for (let i = 0; i < snap.docs.length; i += 400) {
+        const batch = writeBatch(db);
+        snap.docs.slice(i, i + 400).forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    }
+
+    window.resetCompletoAdmin = async function() {
+      mostraStatus("Reset disabilitato per conservare pagamenti, consegne e storico. Per una nuova campagna occorre archiviare i dati.", true);
+    };
+
+    // Tutte le operazioni nuove condividono una revisione: una lettura esterna
+    // alla transazione è valida solo se nessun'altra operazione è intervenuta.
+    const familyId = f => encodeURIComponent(f);
+    const personKey = n => encodeURIComponent(chiavePersona(n));
+    const lineKey = (n,p) => JSON.stringify([chiavePersona(n),p]);
+    const statoPagamento = (pagato, totale) => pagato > totale ? `Credito ${euro((pagato-totale)/100)}` : pagato === totale && totale > 0 ? 'Saldo' : pagato > 0 ? `Acconto · residuo ${euro((totale-pagato)/100)}` : `Da pagare ${euro(totale/100)}`;
+    const lockRef = () => doc(db, 'meta', 'operazioni_revision');
+    async function leggiFamiglia(fam) {
+      const rev = await getDoc(lockRef());
+      const [rows, state] = await Promise.all([
+        getDocs(query(collection(db,'prenotazioni'),where('nome','==',fam))),
+        getDoc(doc(db,'gestione_famiglie',familyId(fam)))
+      ]);
+      const net = new Map();
+      rows.forEach(d => {
+        const r=d.data(), id=r.prodottoId || prodottiGlobal.find(p=>p.tipo===r.prodotto)?.id;
+        if (!id) throw new Error(`Prodotto storico non riconosciuto: ${r.prodotto}.`);
+        const k=lineKey(r.nota,id);
+        if(!net.has(k)) net.set(k,{nome:fam,nota:r.nota || 'Generale',prodottoId:id,prodotto:r.prodotto,quantita:0});
+        net.get(k).quantita += Number(r.quantita)||0;
+      });
+      return {version:rev.data()?.version || 0, net, persone:state.data()?.persone || {}};
+    }
+    async function registraOperazione(items, tipo='ordine', extra={}) {
+      const fam=items[0]?.nome || extra.fam;
+      if(!fam) throw new Error('Famiglia mancante.');
+      const base=await leggiFamiglia(fam);
+      const aggregate=new Map();
+      for(const i of items){
+        if(i.nome!==fam || !Number.isSafeInteger(i.quantita) || i.quantita===0) throw new Error('Quantità non valida.');
+        const k=lineKey(i.nota,i.prodottoId);
+        if(!aggregate.has(k)) aggregate.set(k,{...i,quantita:0});
+        aggregate.get(k).quantita+=i.quantita;
+      }
+      const righe=[...aggregate.values()].filter(i=>i.quantita);
+      if(righe.length>180) throw new Error('Troppe righe: suddividi l’operazione.');
+      const opRef=doc(collection(db,'operazioni'));
+      return runTransaction(db,async tx=>{
+        const lock=await tx.get(lockRef());
+        if((lock.data()?.version || 0)!==base.version) throw new Error('I dati sono cambiati su un altro dispositivo. Riapri e riprova.');
+        const stateRef=doc(db,'gestione_famiglie',familyId(fam));
+        const state=await tx.get(stateRef);
+        const persone=state.data()?.persone || {};
+        let origine;
+        if(extra.undo){
+          origine=await tx.get(doc(db,'operazioni',extra.undo));
+          if(!origine.exists() || origine.data().annullata || origine.data().tipo==='annullamento') throw new Error('Operazione non annullabile.');
+        }
+        const products=new Map();
+        const ids=new Set([...righe.map(i=>i.prodottoId), ...[...base.net.values()].filter(i=>personKey(i.nota)===personKey(extra.persona || '')).map(i=>i.prodottoId)]);
+        for(const id of ids){ const snap=await tx.get(doc(db,'prodotti',id)); if(!snap.exists()) throw new Error('Prodotto eliminato: impossibile procedere.'); products.set(id,snap.data()); }
+        const next=new Map([...base.net].map(([k,v])=>[k,{...v}]));
+        const delta=new Map();
+        for(const r of righe){
+          const k=lineKey(r.nota,r.prodottoId), old=next.get(k)?.quantita || 0, q=old+r.quantita;
+          if(q<0) throw new Error(`${r.nota}: impossibile togliere più pezzi di quelli ordinati.`);
+          const consegnati=persone[personKey(r.nota)]?.consegne?.[r.prodottoId] || 0;
+          if(q<consegnati) throw new Error(`${r.nota}: ci sono già ${consegnati} pezzi consegnati. Correggi prima la consegna.`);
+          next.set(k,{...r,quantita:q}); delta.set(r.prodottoId,(delta.get(r.prodottoId)||0)+r.quantita);
+        }
+        if(tipo==='cancellazione') {
+          for(const r of righe) if((persone[personKey(r.nota)]?.pagato || 0)>0) throw new Error('Sono presenti pagamenti: registra prima il rimborso.');
+        }
+        let before=null, after=null;
+        if(extra.persona){
+          const key=personKey(extra.persona);
+          before=persone[key] || {pagato:0,consegne:{}};
+          if(extra.expected && JSON.stringify(before)!==JSON.stringify(extra.expected)) throw new Error('Pagamenti o consegne cambiati: riapri il dettaglio.');
+          after=extra.restore || {pagato:extra.pagato,consegne:extra.consegne};
+          if(!Number.isSafeInteger(after.pagato) || after.pagato<0) throw new Error('Pagamento non valido.');
+          for(const [id,q] of Object.entries(after.consegne || {})){
+            if(!Number.isSafeInteger(q) || q<0 || q>(next.get(lineKey(extra.persona,id))?.quantita || 0)) throw new Error('Le consegne devono essere intere e non superare gli ordini.');
+          }
+          persone[key]=after;
+        }
+        const notifiche=[];
+        for(const [id,d] of delta){
+          const p=products.get(id), giacenza=Number(p.giacenza)-d, ordinati=Number(p.ordinati || 0)+d;
+          if(!Number.isSafeInteger(giacenza) || giacenza<0 || !Number.isSafeInteger(ordinati) || ordinati<0) throw new Error('Giacenza o ordinati incoerenti: controllare il prodotto '+p.tipo);
+          const n=calcolaNotificaGiacenza(p.tipo,Number(p.giacenza),giacenza); if(n) notifiche.push(n);
+          tx.update(doc(db,'prodotti',id),{giacenza,ordinati});
+        }
+        for(const r of righe) tx.set(doc(collection(db,'prenotazioni')),{...r,operazioneId:opRef.id,data:serverTimestamp()});
+        tx.set(stateRef,{persone});
+        tx.set(lockRef(),{version:base.version+1});
+        const avvisi=[];
+        if(righe.some(r=>r.quantita>=20)) avvisi.push('Quantità elevata: verificare');
+        if(tipo==='ordine' && righe.some(r=>(base.net.get(lineKey(r.nota,r.prodottoId))?.quantita || 0)>0)) avvisi.push('Persona/prodotto già presenti: possibile doppione');
+        tx.set(opRef,{famiglia:fam,tipo,righe,persona:extra.persona || null,before,after,avvisi,annullata:false,origine:extra.undo || null,data:serverTimestamp()});
+        if(extra.undo) tx.update(doc(db,'operazioni',extra.undo),{annullata:true,annullamentoId:opRef.id});
+        return notifiche;
+      });
+    }
+    function extraModal(title,html){
+      let m=document.getElementById('modal-extra');
+      if(!m){m=document.createElement('div');m.id='modal-extra';m.className='modal';document.body.append(m);}
+      m.innerHTML=`<div class="modal-content-box" style="max-width:800px"><h3>${esc(title)}</h3>${html}<button class="btn-secondary" onclick="document.getElementById('modal-extra').style.display='none'">Chiudi</button></div>`;
+      m.style.display='flex';
+    }
+    let gestioneAperta=null, scritturaGestione=false;
+    window.gestisciPersona=async(fam,persona)=>{
+      try{
+        const b=await leggiFamiglia(fam), g=b.persone[personKey(persona)] || {pagato:0,consegne:{}};
+        const rows=[...b.net.values()].filter(r=>personKey(r.nota)===personKey(persona) && r.quantita>0);
+        gestioneAperta={fam,persona,expected:g,rows};
+        const tot=rows.reduce((t,r)=>t+r.quantita*getPrezzo(r.prodotto,r.prodottoId),0);
+        extraModal(`${fam} · ${persona}`,`<p>Totale ${euro(tot)} · ${esc(statoPagamento(g.pagato,Math.round(tot*100)))}</p>
+          <label>Totale pagato finora (€), inclusi gli acconti</label><input id="pagato-persona" type="number" min="0" step="0.01" value="${g.pagato/100}">
+          <p>Indica i pezzi complessivamente consegnati. La consegna non scala ancora la giacenza.</p>
+          ${rows.map((r,i)=>`<label>${esc(r.prodotto)} · ordinati ${r.quantita}</label><input class="consegna-persona" data-index="${i}" type="number" min="0" max="${r.quantita}" value="${g.consegne?.[r.prodottoId] || 0}">`).join('')}
+          <button onclick="salvaGestionePersona()">Salva pagamenti e consegne</button>`);
+      }catch(e){mostraStatus(e.message,true);}
+    };
+    window.salvaGestionePersona=async()=>{
+      if(scritturaGestione || !gestioneAperta)return;
+      scritturaGestione=true;
+      try{
+        const g=gestioneAperta, value=Number(document.getElementById('pagato-persona').value), pagato=Math.round(value*100), consegne={};
+        if(!Number.isFinite(value)||Math.abs(value*100-pagato)>0.00001)throw new Error('Inserisci un importo con massimo due decimali.');
+        document.querySelectorAll('.consegna-persona').forEach(el=>consegne[g.rows[Number(el.dataset.index)].prodottoId]=Number(el.value));
+        await registraOperazione([],'pagamenti/consegne',{...g,pagato,consegne});
+        document.getElementById('modal-extra').style.display='none';
+        await mostraDettaglioPerPersone();mostraStatus('Pagamenti e consegne salvati');
+      }catch(e){mostraStatus(e.message,true);}finally{scritturaGestione=false;}
+    };
+    window.cancellaPersona=async(fam,persona)=>{
+      try{
+        const b=await leggiFamiglia(fam), g=b.persone[personKey(persona)];
+        if(g?.pagato>0)throw new Error('Sono presenti pagamenti: registra prima il rimborso correggendo il totale pagato.');
+        const righe=[...b.net.values()].filter(r=>personKey(r.nota)===personKey(persona)&&r.quantita>0).map(r=>({...r,quantita:-r.quantita}));
+        if(!righe.length)return;
+        if(!confirm(`Cancellare tutti i prodotti di ${persona}? La disponibilità verrà ripristinata.`))return;
+        await registraOperazione(righe,'cancellazione');await mostraDettaglioPerPersone();mostraStatus('Ordine cancellato');
+      }catch(e){mostraStatus(e.message,true);}
+    };
+    window.apriReport=async()=>{
+      try{
+        const snap=await getDocs(collection(db,'operazioni'));
+        const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.data?.toMillis() || 0)-(a.data?.toMillis() || 0));
+        extraModal('Report operazioni',`<p>Storico disponibile dall’installazione di questa versione. La famiglia è quella selezionata; l’identità della persona che opera non è verificata.</p><label>Filtra famiglia o persona</label><input type="text" oninput="filtraReport(this.value)"><div id="righe-report">${rows.map(r=>`<div class="card-persona report-row"><strong>${esc(r.data?.toDate().toLocaleString('it-IT') || 'In salvataggio')} · ${esc(r.famiglia)} · ${esc(r.tipo)}</strong><p>${r.righe.map(i=>`${esc(i.nota)}: ${esc(i.prodotto)} ${i.quantita>0?'+':''}${i.quantita}`).join('<br>')}${r.persona?`${esc(r.persona)}: pagato ${euro((r.before?.pagato || 0)/100)} → ${euro((r.after?.pagato || 0)/100)}<br>Consegne prima: ${esc(JSON.stringify(r.before?.consegne || {}))}<br>Consegne dopo: ${esc(JSON.stringify(r.after?.consegne || {}))}`:''}</p><p style="color:#b55300">${esc((r.avvisi || []).join(' · '))}</p>${r.annullata?'Annullata':r.tipo==='annullamento'?'Compensazione registrata':`<button data-id="${esc(r.id)}" onclick="annullaOperazione(this.dataset.id)">Annulla operazione</button>`}</div>`).join('') || '<p>Nessuna operazione registrata.</p>'}</div>`);
+      }catch(e){mostraStatus(e.message,true);}
+    };
+    window.filtraReport=q=>document.querySelectorAll('.report-row').forEach(el=>el.hidden=!el.textContent.toLowerCase().includes(q.toLowerCase()));
+    window.annullaOperazione=async id=>{
+      if(!confirm('Annullare questa operazione? Sarà registrata una compensazione nello storico.'))return;
+      try{
+        const s=await getDoc(doc(db,'operazioni',id)), r=s.data();
+        if(!r || r.annullata || r.tipo==='annullamento')throw new Error('Operazione non annullabile.');
+        await registraOperazione(r.righe.map(i=>({...i,quantita:-i.quantita})),'annullamento',{fam:r.famiglia,undo:id,persona:r.persona,expected:r.after,restore:r.before});
+        await apriReport();mostraStatus('Operazione annullata');
+      }catch(e){mostraStatus(e.message,true);}
+    };
+    let pdfPronto=null;
+    window.preparaPDF=async(fam=null,persona=null)=>{
+      try{
+        if(!window.jspdf)throw new Error('Libreria PDF non disponibile. Verifica la connessione e ricarica.');
+        const pdf=new window.jspdf.jsPDF();let y=18;
+        const line=t=>{for(const l of pdf.splitTextToSize(String(t),178)){if(y>278){pdf.addPage();y=18;}pdf.text(l,16,y);y+=6;}};
+        pdf.setFontSize(11);line('Riepilogo ordini · '+new Date().toLocaleString('it-IT'));line('');
+        const names=fam?[fam]:[...new Set((await getDocs(collection(db,'prenotazioni'))).docs.map(d=>d.data().nome))].sort();
+        let totale=0, pagamenti=0;
+        for(const f of names){
+          const b=await leggiFamiglia(f), people=[...new Set([...b.net.values()].map(r=>chiavePersona(r.nota)))];
+          for(const name of people){
+            if(persona && name!==chiavePersona(persona))continue;
+            const rows=[...b.net.values()].filter(r=>chiavePersona(r.nota)===name&&r.quantita>0), g=b.persone[personKey(name)] || {pagato:0,consegne:{}};
+            if(!rows.length&&!g.pagato)continue;
+            line(f+' / '+capitalizzaNome(name));let sub=0;
+            for(const r of rows){const prezzo=getPrezzo(r.prodotto,r.prodottoId);sub+=r.quantita*prezzo;line(`${r.prodotto}: ${r.quantita} x ${euro(prezzo)} · consegnati ${g.consegne?.[r.prodottoId] || 0} · da consegnare ${r.quantita-(g.consegne?.[r.prodottoId] || 0)}`);}
+            line(`Totale ${euro(sub)} · pagato ${euro(g.pagato/100)} · ${statoPagamento(g.pagato,Math.round(sub*100))}`);line('');totale+=sub;pagamenti+=g.pagato/100;
+          }
+        }
+        line(`TOTALE ${euro(totale)} · PAGATO ${euro(pagamenti)} · DIFFERENZA ${euro(totale-pagamenti)}`);
+        pdfPronto=new File([pdf.output('blob')],`riepilogo-${slug(persona || fam || 'tutti')}.pdf`,{type:'application/pdf'});
+        extraModal('PDF pronto',`<p>Il PDF contiene ordini, pagamenti e consegne. Su dispositivi compatibili scegli WhatsApp dal menu di condivisione. Altrimenti scarica il PDF e allegalo nella chat.</p><button onclick="condividiPDF()">Condividi PDF su WhatsApp</button><button onclick="scaricaPDF()">Scarica PDF</button>`);
+      }catch(e){mostraStatus(e.message,true);}
+    };
+    window.scaricaPDF=()=>{if(!pdfPronto)return;const u=URL.createObjectURL(pdfPronto), a=document.createElement('a');a.href=u;a.download=pdfPronto.name;a.click();setTimeout(()=>URL.revokeObjectURL(u),30000);};
+    window.condividiPDF=async()=>{
+      if(!pdfPronto)return;
+      try{if(navigator.canShare?.({files:[pdfPronto]}))await navigator.share({files:[pdfPronto],title:'Riepilogo ordini'});else{scaricaPDF();mostraStatus('PDF scaricato: allegalo nella chat WhatsApp.');}}catch(e){if(e.name!=='AbortError')mostraStatus('Condivisione non riuscita: usa Scarica PDF.',true);}
+    };
+
+    // ============ AVVIO ============
+    // Il modulo viene eseguito a pagina già caricata: il DOM è pronto.
+    window.aggiornaVisibilitaBottoneNotifiche();
+  </script>
+</head>
+<body>
+
+<div id="status-message"></div>
+
+<!-- MAIN CONTENT -->
+<div id="main-content">
+  <header>
+    <img src="logo.png" alt="Logo" onerror="this.style.display='none'"/>
+    <h2>Ordini Autofinanziamento</h2>
+  </header>
+
+  <div style="max-width: 600px; margin: auto;">
+      <label for="nome">👤 Famiglia Padrini:</label>
+      <select id="nome" onchange="localStorage.setItem('famiglia', this.value)">
+        <option value="">-- Seleziona --</option>
+      </select>
+
+      <div id="sezione-prodotti">
+        <h3 style="color: #2e7d32; margin-top: 1.5rem;">📦 Disponibilità</h3>
+        <div id="lista-prodotti">Caricamento disponibilità in corso...</div>
+      </div>
+
+      <button onclick="confermaOrdine()">🚀 Invia Prenotazione</button>
+      <button class="btn-dark" onclick="mostraRiepilogoPrenotazioni()">📊 Visualizza Riepilogo</button>
+      <button id="btn-notifiche" class="admin-btn" onclick="attivaNotifichePush()">🔔 Abilita Notifiche</button>
+      <button class="btn-warning" onclick="entraPannelloAdmin()" style="margin-top:1rem;">⚙️ Pannello Admin</button>
+  </div>
+</div>
+
+<!-- ADMIN PANEL -->
+<div id="admin-panel" style="display:none; max-width:800px; margin:auto;">
+  <header>
+    <h2>⚙️ Pannello Amministrazione</h2>
+  </header>
+  <div id="admin-content" style="background:white; padding:20px; border-radius:8px; margin-bottom:20px;">
+    Caricamento...
+  </div>
+  <button class="btn-secondary" onclick="esciPannelloAdmin()" style="width:100%;">← Torna Indietro</button>
+</div>
+
+<!-- MODALE LOGIN ADMIN -->
+<div id="modal-admin-login" class="modal">
+  <div class="modal-content-box" style="max-width: 340px;">
+    <h3 style="margin-top: 0; color:#2e7d32;">🔒 Accesso Admin</h3>
+    <label for="admin-password-input">Password:</label>
+    <input type="password" id="admin-password-input" placeholder="Inserisci password" autocomplete="off"
+           onkeydown="if(event.key==='Enter'){ event.preventDefault(); confermaPasswordAdmin(); }">
+    <div style="display: flex; gap: 10px; margin-top: 20px;">
+      <button onclick="confermaPasswordAdmin()" style="margin:0;">Entra</button>
+      <button onclick="chiudiModalAdminLogin()" class="btn-secondary" style="margin:0;">Annulla</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE CONFERMA -->
+<div id="modal" class="modal">
+  <div class="modal-content-box">
+    <h3 id="titoloModal" style="color: #2e7d32; margin-top: 0;">Conferma Ordine</h3>
+    <div id="riepilogoCorpo" style="background: #e8f5e9; padding: 10px; border-radius: 5px; font-family: monospace; white-space: pre-wrap; font-size: 0.9rem; border: 1px solid #a5d6a7;"></div>
+    <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button id="btnEsegui" onclick="eseguiOperazioneBackend()" style="margin:0;">Conferma</button>
+        <button onclick="document.getElementById('modal').style.display='none'" class="btn-secondary" style="margin:0;">Annulla</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE RIEPILOGO -->
+<div id="modal-riepilogo" class="modal">
+  <div class="modal-content-box" style="max-width: 600px;">
+    <h3 style="margin-top: 0; color:#2e7d32;">Riepilogo Famiglia</h3>
+    <div id="contenuto-riepilogo"></div>
+    <button class="btn-secondary" onclick="document.getElementById('modal-riepilogo').style.display='none'" style="margin-top:15px;">Chiudi</button>
+  </div>
+</div>
+
+<!-- MODALE DETTAGLIO PERSONE -->
+<div id="modal-dettaglio-persone" class="modal">
+  <div class="modal-content-box" style="max-width: 650px; width: 95%;">
+    <h3 style="margin-top: 0; color:#2e7d32;">Dettaglio per Persona</h3>
+    <div id="contenuto-dettaglio"></div>
+    <div style="display: flex; gap: 10px; margin-top: 15px;">
+        <button onclick="preparaModificaDettaglio()" style="margin:0;">Applica Modifiche</button>
+        <button class="btn-secondary" onclick="document.getElementById('modal-dettaglio-persone').style.display='none'" style="margin:0;">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE RIEPILOGO ORDINI PER FAMIGLIA (ADMIN) -->
+<div id="modal-riepilogo-famiglie" class="modal">
+  <div class="modal-content-box" style="max-width: 800px; width: 95%;">
+    <div class="no-print" style="display:flex; justify-content: space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0; color:#2e7d32;">Riepilogo Ordini per Famiglia</h3>
+      <div style="display:flex; gap:10px;">
+        <button onclick="window.print()" style="margin:0; width:auto;">🖨️ Stampa / Salva PDF</button>
+        <button class="btn-secondary" onclick="document.getElementById('modal-riepilogo-famiglie').style.display='none'" style="margin:0; width:auto;">Chiudi</button>
+      </div>
+    </div>
+    <div id="contenuto-stampa-famiglie"></div>
+  </div>
+</div>
+
+</body>
+</html>
